@@ -73,7 +73,7 @@ router.post('/share/:passwordId', async (req, res) => {
   await Password.updateOne({ _id: passwordId }, { shareToken, shareExpiration: expirationDate });
 
   // Send the share link to the user
-  const shareLink = `${req.protocol}://${req.get('host')}/api/passwords/share/${passwordId}/${shareToken}`;
+  const shareLink = `http://44.206.224.230/api/passwords/share/${passwordId}/${shareToken}`;
   res.statusCode(200).json({ shareLink });
 });
 
