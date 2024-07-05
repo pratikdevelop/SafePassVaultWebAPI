@@ -158,7 +158,7 @@ router.post("/reset-password", async (req, res) => {
       { $set: { resetToken, resetTokenExpiry } }
     );
 
-    const resetLink = `http://localhost:4200/reset-password?id=${user._id}&token=${resetToken}`;
+    const resetLink = `https://management-45.web.app/reset-password?id=${user._id}&token=${resetToken}`;
 
     const mailOptions = {
       from: 'passwordmanagementapp@gmail.com', // Your Gmail address
