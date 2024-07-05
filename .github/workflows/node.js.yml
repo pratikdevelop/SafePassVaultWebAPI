@@ -31,4 +31,4 @@ jobs:
         touch .env
         echo "${{secrets.PROD_ENVIRONMENT}}"
     - run: |
-        pm2 restart index.js
+        pm2 start index.js
