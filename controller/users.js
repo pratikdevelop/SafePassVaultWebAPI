@@ -8,10 +8,10 @@ const bcrypt = require('bcryptjs');
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
   port: 587,
-  secure: false, 
+  secure: false,
   auth: {
-    user:  process.env.EMAIL_USERNAME,
-    pass:  process.env.EMAIL_PASSWORD,
+    user: process.env.EMAIL_USERNAME,
+    pass: process.env.EMAIL_PASSWORD,
   },
 });
 
@@ -30,19 +30,19 @@ router.post('/register', async (req, res) => {
       <p>Please enter this code to complete your Registeration.</p>
       Thanks,
       Password Management APP` // Optional: Use HTML for formatting
-  };
-  
-  transporter.sendMail(mailOptions, async (error, info) => {
+    };
+
+    transporter.sendMail(mailOptions, async (error, info) => {
       if (error) {
-          console.log('Error occurred while sending email:', error);
+        console.log('Error occurred while sending email:', error);
       } else {
         await user.save();
         console.log('Email sent:', info.response);
         res.status(201).send({ message: `User created successfully ${confirmationCode}` });
       }
-  });
-  
-   
+    });
+
+
   } catch (error) {
     res.status(400).send({ message: `Error creating user ${error}` });
   }
@@ -140,7 +140,7 @@ router.delete('/profile', async (req, res) => {
 
 router.post("/reset-password", async (req, res) => {
   try {
-    const email = req.body.email; 
+    const email = req.body.email;
     // Find user by email
     const user = await User.findOne({ email });
 
@@ -192,23 +192,23 @@ router.get("/verify-reset-link", async (req, res) => {
 
     // Validate user ID and reset token
     if (!id || !toekn) {
-      return res.status(400).json({ verified:false, message: "Missing user ID or reset token" });
+      return res.status(400).json({ verified: false, message: "Missing user ID or reset token" });
     }
 
     // Find user by ID
     const user = await User.findById(id);
     if (!user) {
-      return res.status(404).json({ verified:false, message: "User not found" });
+      return res.status(404).json({ verified: false, message: "User not found" });
     }
 
     // Verify reset token and expiration (replace with your implementation)
     const isValidToken = await user.verifyResetToken(toekn, user); // Assuming a method on the User model
     if (!isValidToken) {
-      return res.status(400).json({ verified:false, message: "Invalid or expired reset token" });
+      return res.status(400).json({ verified: false, message: "Invalid or expired reset token" });
     }
 
     // Reset token is valid, user can proceed to reset password (redirect or send success message)
-    res.json({ verified:true, message: "Reset link verified. You can now reset your password." });
+    res.json({ verified: true, message: "Reset link verified. You can now reset your password." });
 
   } catch (error) {
     console.error(error);
@@ -216,24 +216,39 @@ router.get("/verify-reset-link", async (req, res) => {
   }
 });
 
-router.patch("/change-password/:id",  async (req, res) => {
+router.patch("/change-password/:id", async (req, res) => {
   try {
-    const {  password, comparePassword } = req.body;
+    const { password, comparePassword } = req.body;
     const user = await User.findById(req.params.id);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    const salt = await bcrypt.genSalt(10);
-    user.password = await bcrypt.hash(password, salt);
+    user.password = password;
     await user.save();
-
     res.status(200).json({ message: 'Password changed successfully' });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Error changing password' });
   }
-}
-)
+});
 
+router.post('/logout', async (req, res) => {
+  const userId = req.user._id; // Extract user ID from the decoded token
+
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).send({ message: 'User not found' });
+    }
+    // Update user document to add it to the blacklist (assuming a blacklist field)
+    user.tokens =[];
+    await user.save();
+
+    res.status(200).send({ message: 'Successfully logged out' });
+  } catch (err) {
+    console.error('Error logging out user:', err);
+    res.status(500).send({ message: 'Internal server error' });
+  }
+});
 module.exports = router;
