@@ -71,7 +71,7 @@ userSchema.pre('save', async function(next) {
 
 userSchema.methods.generateAuthToken = function() {
   const token = jwt.sign({ _id: this._id }, process.env.SECRET_KEY);
-  this.tokens = {token};
+  this.tokens = [{token}];
   this.save();
   return token;
 };
@@ -87,10 +87,6 @@ userSchema.statics.findByCredentials = async function(email, password) {
   if (!user) {
     throw new Error('Invalid email');
   }
-  const salt = await bcrypt.genSalt(10);
-  const pdassword = await bcrypt.hash(password, salt);
-  console.log("pp", pdassword)
-  console.log("p44p", user)
   const isMatch = await bcrypt.compare(password, user.password);
   if (!isMatch) {
     throw new Error('Invalid Password');

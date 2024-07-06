@@ -4,6 +4,7 @@ const User = require('../model/user');
 const nodemailer = require('nodemailer');
 const crypto = require('crypto'); // For generating secure tokens
 const bcrypt = require('bcryptjs');
+const { check, validationResult } = require('express-validator'); // Assuming you're using express-validator
 
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
@@ -158,7 +159,7 @@ router.post("/reset-password", async (req, res) => {
       { $set: { resetToken, resetTokenExpiry } }
     );
 
-    const resetLink = `https://management-45.web.app/reset-password?id=${user._id}&token=${resetToken}`;
+    const resetLink = `https://passwordmanagementapp.netlify.app/reset-password?id=${user._id}&token=${resetToken}`;
 
     const mailOptions = {
       from: 'passwordmanagementapp@gmail.com', // Your Gmail address
@@ -216,34 +217,63 @@ router.get("/verify-reset-link", async (req, res) => {
   }
 });
 
-router.patch("/change-password/:id", async (req, res) => {
-  try {
-    const { password, comparePassword } = req.body;
-    const user = await User.findById(req.params.id);
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+router.patch(
+  "/change-password/:id",
+  [
+    check('password')
+      .not()
+      .isEmpty()
+      .withMessage('Password is required')
+      .isLength({ min: 8 })
+      .withMessage('Password must be at least 8 characters long'),
+    check('confirmPassword')
+      .not()
+      .isEmpty()
+      .withMessage('Confirm password is required')
+      .custom((value, { req }) => {
+        if (value !== req.body.password) {
+          throw new Error('Passwords do not match');
+        }
+        return true;
+      }),
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
     }
 
-    user.password = password;
-    await user.save();
-    res.status(200).json({ message: 'Password changed successfully' });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Error changing password' });
-  }
-});
+    try {
+      const { password } = req.body;
+
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(password, salt);
+      const user = await User.findByIdAndUpdate(req.params.id, {
+        password: hashedPassword
+      })
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+
+      res.status(200).json({ message: 'Password changed successfully' });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: 'Error changing password' });
+    }
+  });
 
 router.post('/logout', async (req, res) => {
   const userId = req.user._id; // Extract user ID from the decoded token
 
   try {
-    const user = await User.findById(userId);
+    const user = await User.findOneAndUpdate(
+      { _id: userId }, // Find the user by ID
+      { $set: { tokens: [] } } // Update tokens and set blacklisted flag
+    );
+
     if (!user) {
       return res.status(404).send({ message: 'User not found' });
     }
-    // Update user document to add it to the blacklist (assuming a blacklist field)
-    user.tokens =[];
-    await user.save();
 
     res.status(200).send({ message: 'Successfully logged out' });
   } catch (err) {
