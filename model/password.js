@@ -1,11 +1,17 @@
 const mongoose = require('mongoose');
 
 const passwordSchema = new mongoose.Schema({
+  folder: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Folder',
+    required: true
+  },
   website: {
     type: String,
     required: true,
     trim: true,
   },
+
   username: {
     type: String,
     required: true,
@@ -19,18 +25,25 @@ const passwordSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
-  userId: {
+  created_by: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true,
   },
-  shareToken: {
-    type: String,
-    default: null,
+  totp: {
+    type: Number,
   },
-  shareExpiration: {
-    type: Date,
-    default: null,
+  name: {
+    type: String,
+  },
+  favorite: {
+    type: Boolean,
+    default: false
+  },
+  modifiedby: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true,
   },
   createdAt: {
     type: Date,

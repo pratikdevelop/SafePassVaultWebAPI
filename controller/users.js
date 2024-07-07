@@ -17,8 +17,8 @@ const transporter = nodemailer.createTransport({
 });
 
 router.post('/register', async (req, res) => {
-  const user = new User(req.body);
   try {
+    const user = new User(req.body);
     const confirmationCode = user.generateConfirmationCode();
     user.confirmationCode = confirmationCode;
     const mailOptions = {
@@ -62,7 +62,6 @@ router.post('/confirm-email', async (req, res) => {
     }
     user.emailConfirmed = true;
     const token = user.generateAuthToken();
-    // await user.save();
     res.status(200).send({ message: 'Email confirmed successfully', token });
   } catch (error) {
     console.error(error);
@@ -148,12 +147,8 @@ router.post("/reset-password", async (req, res) => {
     if (!user) {
       return res.status(404).send({ message: 'User email not found' });
     }
-    console.log("reset", user);
-    // Generate a secure reset token with an expiry time of 10 minutes
     const resetToken = crypto.randomBytes(32).toString('hex');
     const resetTokenExpiry = Date.now() + 600000; // 10 minutes in milliseconds
-
-    // Update user document with reset token and expiry
     await User.updateOne(
       { _id: user._id },
       { $set: { resetToken, resetTokenExpiry } }
@@ -278,6 +273,37 @@ router.post('/logout', async (req, res) => {
     res.status(200).send({ message: 'Successfully logged out' });
   } catch (err) {
     console.error('Error logging out user:', err);
+    res.status(500).send({ message: 'Internal server error' });
+  }
+});
+router.get("/resend-code/:email", async (req, res) => {
+  try {
+    const user = await User.findOne({ email: req.params.email });
+
+    if (!user) {
+      return res.status(404).send({ message: 'User not found' });
+    }
+
+    const confirmationCode = user.generateConfirmationCode();
+    user.confirmationCode = confirmationCode;
+
+    const mailOptions = {
+      from: 'your_email@gmail.com', // Your email address
+      to: req.params.email, // Recipient's email address
+      subject: 'Verification Code Email',
+      html: `<b>Hi ${user.name}</b>,
+              <p>Your verification code is: ${confirmationCode}</p>
+              <p>Please enter this code to complete your registration.</p>
+              Thanks,<br>
+              Password Management App`
+    };
+
+    await transporter.sendMail(mailOptions);
+    await user.save();
+
+    res.status(200).send({ message: 'Verification code resent successfully' });
+  } catch (error) {
+    console.error('Error occurred:', error);
     res.status(500).send({ message: 'Internal server error' });
   }
 });
