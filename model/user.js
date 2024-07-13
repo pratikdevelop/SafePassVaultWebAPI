@@ -17,6 +17,10 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  role: {
+    type: String,
+    default: "admin"
+  },
   confirmationCode: {
     type: String,
     required: true,
@@ -70,6 +74,7 @@ userSchema.pre('save', async function(next) {
 });
 
 userSchema.methods.generateAuthToken = function() {
+  console.log("rrr", this._id);
   const token = jwt.sign({ _id: this._id }, process.env.SECRET_KEY);
   this.tokens = [{token}];
   this.save();

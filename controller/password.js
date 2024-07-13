@@ -6,7 +6,7 @@ var CryptoJS = require("crypto-js");
 
 router.get("/", async (req, res) => {
   try {
-    const passwords = await Password.find({userId:req.user._id});
+    const passwords = await Password.find({created_by:req.user._id});
     res.json(passwords);
   } catch (err) {
     console.error(err);
@@ -16,7 +16,9 @@ router.get("/", async (req, res) => {
 
 router.post("/password", async (req, res) => {
   try {
-    req.body["userId"] = req.user._id;
+    req.body["created_by"] = req.user._id;
+    req.body["modifiedby"] = req.user._id;
+    req.body["folder"] = req.user._id;
 
     const newPassword = new Password(req.body);
     const savedPassword = await newPassword.save();

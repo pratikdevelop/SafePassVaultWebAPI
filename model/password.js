@@ -1,17 +1,15 @@
 const mongoose = require('mongoose');
 
 const passwordSchema = new mongoose.Schema({
-  folder: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Folder',
-    required: true
-  },
   website: {
     type: String,
     required: true,
     trim: true,
   },
-
+name:{
+  type:String,
+  default:null
+},
   username: {
     type: String,
     required: true,
@@ -35,6 +33,9 @@ const passwordSchema = new mongoose.Schema({
   },
   name: {
     type: String,
+  },
+  description:{
+    type: String
   },
   favorite: {
     type: Boolean,
