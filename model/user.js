@@ -50,6 +50,8 @@ const userSchema = new mongoose.Schema({
   resetTokenExpiry: {
     type: Date,
   },
+  "Organization" : [{ type:  mongoose.Schema.Types.ObjectId, ref: 'Organization' }], // array of organization IDs the user is a member of
+  "invitation" : [{ type:  mongoose.Schema.Types.ObjectId, ref: 'Invitation' }],
   createdAt: {
     type: Date,
     default: Date.now, // Set the default value to the current timestamp

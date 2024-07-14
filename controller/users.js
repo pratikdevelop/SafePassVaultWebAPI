@@ -6,6 +6,8 @@ const crypto = require('crypto'); // For generating secure tokens
 const bcrypt = require('bcryptjs');
 const { check, validationResult } = require('express-validator'); // Assuming you're using express-validator
 
+const Organization = require('../model/Organization');
+const Invitation = require('../model/Invitation')
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
   port: 587,
@@ -18,17 +20,24 @@ const transporter = nodemailer.createTransport({
 
 router.post('/register', async (req, res) => {
   try {
-    const user = new User(req.body);
+    const { email, password, name, organization, phone } = req.body;
+    let role;
+    if (organization) {
+      role = 'user';
+    } else {
+      role = 'admin';
+    }
+    const user = new User({ email, password, name, role, phone });
     const confirmationCode = user.generateConfirmationCode();
     user.confirmationCode = confirmationCode;
     const mailOptions = {
       from: 'passwordmanagementapp@gmail.com', // Your Gmail address
-      to: req.body.email, // Recipient's email address
-      subject: 'Verificaation Code Email',
+      to: email, // Recipient's email address
+      subject: 'Verification Code Email',
 
-      html: `<b>Hi ${req.body.name}</b>,
+      html: `<b>Hi ${name}</b>,
     <p> Your verification code is:${confirmationCode}</p>
-      <p>Please enter this code to complete your Registeration.</p>
+      <p>Please enter this code to complete your registration.</p>
       Thanks,
       Password Management APP` // Optional: Use HTML for formatting
     };
@@ -42,13 +51,10 @@ router.post('/register', async (req, res) => {
         res.status(201).send({ message: `User created successfully ${confirmationCode}` });
       }
     });
-
-
   } catch (error) {
     res.status(400).send({ message: `Error creating user ${error}` });
   }
 });
-
 
 router.post('/confirm-email', async (req, res) => {
   const { email, confirmationCode } = req.body;
@@ -154,7 +160,7 @@ router.post("/reset-password", async (req, res) => {
       { $set: { resetToken, resetTokenExpiry } }
     );
 
-    const resetLink = `https://passwordmanagementapp.netlify.app/reset-password?id=${user._id}&token=${resetToken}`;
+    const resetLink = `https://passwordmanagementrouter.netlify.app/reset-password?id=${user._id}&token=${resetToken}`;
 
     const mailOptions = {
       from: 'passwordmanagementapp@gmail.com', // Your Gmail address
@@ -209,6 +215,88 @@ router.get("/verify-reset-link", async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Error verifying reset link" });
+  }
+});
+
+router.post('/organizations', async (req, res) => {
+  const { name, description } = req.body;
+  const owner = req.user; // assume req.user is the authenticated user
+
+  try {
+    const organization = new Organization({ name, description, owner });
+    await organization.save();
+    res.status(201).json({ message: 'Organization created successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Error creating organization' });
+  }
+});
+
+// Send an invitation to join an organization
+router.post('/organizations/:organizationId/invitations', async (req, res) => {
+  const organizationId = req.params.organizationId;
+  const recipientId = req.body.recipientId;
+  const sender = req.user; // assume req.user is the authenticated user
+
+  try {
+    const organization = await Organization.findById(organizationId);
+    if (!organization) {
+      return res.status(404).json({ message: 'Organization not found' });
+    }
+
+    const recipient = await User.findById(recipientId);
+    if (!recipient) {
+      return res.status(404).json({ message: 'Recipient not found' });
+    }
+
+    const invitation = new Invitation({
+      sender,
+      recipient,
+      organization,
+      status: 'pending'
+    });
+    await invitation.save();
+
+    // Send an email or notification to the recipient (not implemented here)
+
+    res.status(201).json({ message: 'Invitation sent successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Error sending invitation' });
+  }
+});
+
+// Get all invitations for a user
+router.get('/users/:userId/invitations', async (req, res) => {
+  const userId = req.params.userId;
+
+  try {
+    const invitations = await Invitation.find({ recipient: userId });
+    res.json(invitations);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Error getting invitations' });
+  }
+});
+
+// Update an invitation status
+router.patch('/invitations/:invitationId', async (req, res) => {
+  const invitationId = req.params.invitationId;
+  const status = req.body.status;
+
+  try {
+    const invitation = await Invitation.findById(invitationId);
+    if (!invitation) {
+      return res.status(404).json({ message: 'Invitation not found' });
+    }
+
+    invitation.status = status;
+    await invitation.save();
+
+    res.json({ message: 'Invitation status updated successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Error updating invitation status' });
   }
 });
 

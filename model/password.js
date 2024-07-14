@@ -6,10 +6,10 @@ const passwordSchema = new mongoose.Schema({
     required: true,
     trim: true,
   },
-name:{
-  type:String,
-  default:null
-},
+  name: {
+    type: String,
+    default: null
+  },
   username: {
     type: String,
     required: true,
@@ -34,7 +34,7 @@ name:{
   name: {
     type: String,
   },
-  description:{
+  description: {
     type: String
   },
   favorite: {
@@ -54,6 +54,8 @@ name:{
     type: Date,
     default: Date.now, // Set the default value to the current timestamp
   },
+  tags: [{ type:  mongoose.Schema.Types.ObjectId, ref: 'PasswordTag' }] // array of tag IDs associated with this password
+
 });
 
 const Password = mongoose.model('Password', passwordSchema);
