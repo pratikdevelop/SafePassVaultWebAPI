@@ -221,7 +221,7 @@ router.get("/verify-reset-link", async (req, res) => {
 router.post('/organizations', async (req, res) => {
   const { name, description } = req.body;
   const owner = req.user; // assume req.user is the authenticated user
-
+  console.log('vnknvkfd', owner)
   try {
     const organization = new Organization({ name, description, owner });
     await organization.save();
