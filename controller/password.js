@@ -1,18 +1,66 @@
 const express = require("express");
 const router = express.Router();
 const Password = require("../model/password");
+const User = require("../model/user");
 const jwt = require('jsonwebtoken');
 var CryptoJS = require("crypto-js");
+const mongoose = require('mongoose')
 
 router.get("/", async (req, res) => {
   try {
-    const passwords = await Password.find({created_by:req.user._id});
-    res.json(passwords);
+    const userId = req.user._id; // Assuming user ID is available in req.user
+    const { page = 1, limit = 10, sort = 'name', order = 'asc', search = '' } = req.query;
+
+    const sortOption = {};
+    sortOption[sort] = order === 'asc' ? 1 : -1;
+
+    // Build search query
+    const searchQuery = search
+      ? {
+          $or: [
+            { name: { $regex: search, $options: 'i' } },
+            { website: { $regex: search, $options: 'i' } },
+            { description: { $regex: search, $options: 'i' } },
+            { username: { $regex: search, $options: 'i' } }
+          ]
+        }
+      : {};
+
+    // Fetch passwords with pagination, sorting, and searching
+    const passwords = await Password.find({ created_by: userId, ...searchQuery })
+      .populate('tags')
+      .sort(sortOption)
+      .skip((page - 1) * limit)
+      .limit(Number(limit));
+
+    const user = await User.findById(userId);
+
+    // Add a favorites field to each password object
+    const enhancedPasswords = passwords.map(password => {
+      const isFavorite = user.favorites.includes(password._id);
+      return {
+        ...password.toObject(),
+        isFavorite
+      };
+    });
+
+    const totalCount = await Password.countDocuments({ created_by: userId, ...searchQuery });
+
+    res.json({
+      data: enhancedPasswords,
+      pagination: {
+        totalCount,
+        totalPages: Math.ceil(totalCount / limit),
+        currentPage: Number(page),
+        pageSize: Number(limit)
+      }
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Error fetching passwords" });
   }
 });
+
 
 router.post("/password", async (req, res) => {
   try {
@@ -29,19 +77,27 @@ router.post("/password", async (req, res) => {
   }
 });
 
-router.delete("/password/:id", async (req, res) => {
+router.delete("/password/:ids", async (req, res) => {
   try {
-    const deletedPassword = await Password.findByIdAndDelete(req.params.id);
-    if (!deletedPassword) {
-      res.status(404).json({ message: "Password not found" });
+    const ids = req.params.ids.split(',');
+
+    // Convert string of ids to an array of ObjectId
+    const objectIds = ids.map(id => new mongoose.Types.ObjectId(id));
+
+    // Handle multiple deletions
+    const deletedCount = await Password.deleteMany({ _id: { $in: objectIds } });
+
+    if (deletedCount.deletedCount === 0) {
+      res.status(404).json({ message: "No passwords found or deleted" });
     } else {
-      res.json(deletedPassword);
+      res.json({ message: `${deletedCount.deletedCount} passwords deleted` });
     }
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Error deleting password" });
+    res.status(500).json({ message: "Error deleting passwords" });
   }
 });
+
 router.put("/password/:id", async (req, res) => {
   try {
     const updatedPassword = await Password.findByIdAndUpdate(
@@ -94,5 +150,43 @@ router.get('/share/:passwordId/:shareToken', async (req, res) => {
   );
   res.json({ password: decryptedPassword.toString(CryptoJS.enc.Utf8) });
 });
+
+router.post('/password/:passwordId/favorite', async (req, res) => {
+  try {
+    const userId = req.user._id; // Assuming user ID is available in req.user
+    const passwordId = req.params.passwordId;
+
+    // Check if password exists
+    const password = await Password.findById(passwordId);
+    if (!password) {
+      return res.status(404).json({ message: 'Password not found' });
+    }
+
+    // Check if user exists
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Check if password is already in favorites
+    const favoriteIndex = user.favorites.indexOf(passwordId);
+    if (favoriteIndex > -1) {
+      // Password is already in favorites, remove it
+      user.favorites.splice(favoriteIndex, 1);
+      await user.save();
+      return res.status(200).json({ message: 'Password removed from favorites' });
+    } else {
+      // Password is not in favorites, add it
+      user.favorites.push(passwordId);
+      await user.save();
+      return res.status(200).json({ message: 'Password added to favorites' });
+    }
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Error updating favorites' });
+  }
+});
+
+
 
 module.exports = router;

@@ -64,9 +64,6 @@ router.delete('/:id', async (req, res) => {
 router.get('/search/:name', async (req, res) => {
     try {
         const { name } = req.params;
-
-        // Create a text index if it doesn't exist
-
         const tags = await Tag.find({ name: { $regex: new RegExp(name, 'i') } });
         res.json(tags);
     } catch (error) {
