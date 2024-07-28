@@ -12,6 +12,7 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: true,
     unique: true,
+    match: /.+\@.+\..+/
   },
   password: {
     type: String,
@@ -24,10 +25,12 @@ const userSchema = new mongoose.Schema({
   confirmationCode: {
     type: String,
     required: true,
+    
   },
   phone: {
     type: Number,
     required: true,
+    match: /^[0-9]{10}$/
   },
   emailConfirmed: {
     type: Boolean,
@@ -49,6 +52,38 @@ const userSchema = new mongoose.Schema({
   },
   resetTokenExpiry: {
     type: Date,
+  },
+  billingAddress: {
+    type: String,
+    required: true
+  },
+  city: {
+    type: String,
+    required: true
+  },
+  state: {
+    type: String,
+    required: true
+  },
+  postalCode: {
+    type: String,
+    required: true
+  },
+  country: {
+    type: String,
+    required: true
+  },
+  paymentMethod: {
+    type: String,
+  },
+  cardNumber: {
+    type: String,
+  },
+  expiryDate: {
+    type: String,
+  },
+  cvv: {
+    type: String,
   },
   Organization : [{ type:  mongoose.Schema.Types.ObjectId, ref: 'Organization' }], // array of organization IDs the user is a member of
   invitation : [{ type:  mongoose.Schema.Types.ObjectId, ref: 'Invitation' }],
