@@ -18,43 +18,55 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+
+// Registration endpoint
 router.post('/register', async (req, res) => {
   try {
-    const { email, password, name, organization, phone } = req.body;
-    let role;
-    if (organization) {
-      role = 'user';
-    } else {
-      role = 'admin';
+    const { email, password, name, phone, role, billingAddress, city, state, postalCode, country, paymentMethod, cardNumber, expiryDate, cvv } = req.body;
+    
+    if (role && (!billingAddress || !city || !state || !postalCode || !country || !paymentMethod || !cardNumber || !expiryDate || !cvv)) {
+      return res.status(400).send({ message: 'Billing and payment information is required for paid plans.' });
     }
-    const user = new User({ email, password, name, role, phone });
+
+    const user = new User({ email, password, name, phone, role, billingAddress, city, state, postalCode, country, paymentMethod, cardNumber, expiryDate, cvv });
     const confirmationCode = user.generateConfirmationCode();
     user.confirmationCode = confirmationCode;
-    const mailOptions = {
-      from: 'passwordmanagementapp@gmail.com', // Your Gmail address
-      to: email, // Recipient's email address
-      subject: 'Verification Code Email',
 
+    // Create a default organization for the user
+    const organization = new Organization({
+      name: `${name}'s Organization`,
+      owner: user._id,
+    });
+
+    user.organization.push(organization._id);
+
+    const mailOptions = {
+      from: 'passwordmanagementapp@gmail.com',
+      to: email,
+      subject: 'Verification Code Email',
       html: `<b>Hi ${name}</b>,
-    <p> Your verification code is:${confirmationCode}</p>
+      <p>Your verification code is: ${confirmationCode}</p>
       <p>Please enter this code to complete your registration.</p>
-      Thanks,
-      Password Management APP` // Optional: Use HTML for formatting
+      <p>Thanks,</p>
+      <p>Password Management APP</p>`
     };
 
     transporter.sendMail(mailOptions, async (error, info) => {
       if (error) {
         console.log('Error occurred while sending email:', error);
+        return res.status(500).send({ message: 'Error occurred while sending email' });
       } else {
         await user.save();
+        await organization.save();
         console.log('Email sent:', info.response);
-        res.status(201).send({ message: `User created successfully ${confirmationCode}` });
+        res.status(201).send({ message: `User created successfully. Verification code sent to ${email}` });
       }
     });
   } catch (error) {
-    res.status(400).send({ message: `Error creating user ${error}` });
+    res.status(400).send({ message: `Error creating user: ${error.message}` });
   }
 });
+
 
 router.post('/confirm-email', async (req, res) => {
   const { email, confirmationCode } = req.body;
@@ -63,7 +75,7 @@ router.post('/confirm-email', async (req, res) => {
     if (!user) {
       return res.status(400).send({ message: 'Invalid email' });
     }
-    if (user.confirmationCode !== confirmationCode) {
+    if (user.confirmationCode !== confirmationCode.trim()) {
       return res.status(400).send({ message: 'Invalid confirmation code' });
     }
     user.emailConfirmed = true;

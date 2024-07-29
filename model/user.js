@@ -25,7 +25,6 @@ const userSchema = new mongoose.Schema({
   confirmationCode: {
     type: String,
     required: true,
-    
   },
   phone: {
     type: Number,
@@ -53,54 +52,61 @@ const userSchema = new mongoose.Schema({
   resetTokenExpiry: {
     type: Date,
   },
-  billingAddress: {
-    type: String,
-    required: true
-  },
-  city: {
-    type: String,
-    required: true
-  },
-  state: {
-    type: String,
-    required: true
-  },
-  postalCode: {
-    type: String,
-    required: true
-  },
-  country: {
-    type: String,
-    required: true
-  },
+  billingAddress: String,
+  city: String,
+  state: String,
+  postalCode: String,
+  country: String,
   paymentMethod: {
     type: String,
+    validate: {
+      validator: function(value) {
+        return (this.role === 'admin' || value);
+      },
+      message: 'Payment method is required for paid plans.'
+    }
   },
   cardNumber: {
     type: String,
+    validate: {
+      validator: function(value) {
+        return (this.role === 'admin' || value);
+      },
+      message: 'Card number is required for paid plans.'
+    }
   },
   expiryDate: {
     type: String,
+    validate: {
+      validator: function(value) {
+        return (this.role === 'admin' || value);
+      },
+      message: 'Expiry date is required for paid plans.'
+    }
   },
   cvv: {
     type: String,
+    validate: {
+      validator: function(value) {
+        return (this.role === 'admin' || value);
+      },
+      message: 'CVV is required for paid plans.'
+    }
   },
-  Organization : [{ type:  mongoose.Schema.Types.ObjectId, ref: 'Organization' }], // array of organization IDs the user is a member of
-  invitation : [{ type:  mongoose.Schema.Types.ObjectId, ref: 'Invitation' }],
+  organization: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Organization' }],
+  invitation: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Invitation' }],
   createdAt: {
     type: Date,
-    default: Date.now, // Set the default value to the current timestamp
+    default: Date.now,
   },
   updatedAt: {
     type: Date,
-    default: Date.now, // Set the default value to the current timestamp
+    default: Date.now,
   },
   favorites: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Password' }]
 });
 
-// ... rest of your code ...
-
-
+// Password hashing middleware
 userSchema.pre('save', async function(next) {
   if (!this.isModified('password')) {
     return next();
@@ -111,20 +117,22 @@ userSchema.pre('save', async function(next) {
   next();
 });
 
+// Generate auth token
 userSchema.methods.generateAuthToken = function() {
-  console.log("rrr", this._id);
   const token = jwt.sign({ _id: this._id }, process.env.SECRET_KEY);
-  this.tokens = [{token}];
+  this.tokens = [{ token }];
   this.save();
   return token;
 };
 
+// Generate confirmation code
 userSchema.methods.generateConfirmationCode = function() {
   const code = uuidv4();
   this.confirmationCode = code;
   return code;
 };
 
+// Find user by credentials
 userSchema.statics.findByCredentials = async function(email, password) {
   const user = await this.findOne({ email });
   if (!user) {
@@ -132,31 +140,26 @@ userSchema.statics.findByCredentials = async function(email, password) {
   }
   const isMatch = await bcrypt.compare(password, user.password);
   if (!isMatch) {
-    throw new Error('Invalid Password');
+    throw new Error('Invalid password');
   }
   return user;
 };
 
-userSchema.methods.verifyResetToken = async function (token, user) {
+// Verify reset token
+userSchema.methods.verifyResetToken = async function(token, user) {
   try {
-    // Compare hashed reset token with the provided token
-    const isMatch = user &&( user.resetToken === token);
+    const isMatch = user && (user.resetToken === token);
     if (!isMatch) {
       return false;
     }
-
-    // Check if the reset token has expired (optional)
     if (this.resetToken.expiry && new Date(this.resetToken.expiry) < new Date()) {
       return false;
     }
-
-    // Reset token is valid
     return true;
   } catch (error) {
     console.error(error);
-    return false; // Consider throwing an error for specific handling
+    return false;
   }
 };
-
 
 module.exports = mongoose.model('User', userSchema);
