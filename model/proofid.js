@@ -30,6 +30,14 @@ const proofIdSchema = new mongoose.Schema({
     },
     updatedAt: {
         type: Date
+    },
+    userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+    },
+    documentImageUrl: {
+    type: String
     }
 });
 

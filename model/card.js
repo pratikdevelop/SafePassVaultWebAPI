@@ -32,7 +32,15 @@ const cardSchema = new mongoose.Schema({
     },
     updatedAt: {
         type: Date
-    }
+    },
+    billingAddress:{
+        type: String
+    },
+    userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+    },
 });
 
 cardSchema.pre('save', function(next) {

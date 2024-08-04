@@ -6,6 +6,7 @@ const router = express.Router();
 // Create a new proof ID
 router.post('/', async (req, res) => {
     try {
+        // const user = User.find
         const proofId = new ProofId(req.body);
         await proofId.save();
         res.status(201).send(proofId);

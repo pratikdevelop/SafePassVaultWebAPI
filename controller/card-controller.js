@@ -6,9 +6,10 @@ const router = express.Router();
 // Create a new card
 router.post('/', async (req, res) => {
     try {
-        const card = new Card(req.body);
-        await card.save();
-        res.status(201).send(card);
+        req.body.userId = req.user._id;
+        const newCard = new Card(req.body);
+        await newCard.save();
+        res.status(201).send(newCard);
     } catch (error) {
         res.status(400).send(error);
     }

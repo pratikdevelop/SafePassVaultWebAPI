@@ -21,7 +21,12 @@ const noteSchema = new mongoose.Schema({
     },
     updatedAt: {
         type: Date
-    }
+    },
+    userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+    },
 });
 
 noteSchema.pre('save', function(next) {
