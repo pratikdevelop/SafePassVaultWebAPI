@@ -407,4 +407,37 @@ router.get("/resend-code/:email", async (req, res) => {
     res.status(500).send({ message: 'Internal server error' });
   }
 });
+
+router.post('/change-password', async (req, res) => {
+  const userId  = req.user._id; // Extracted from auth middleware
+  const { currentPassword, newPassword } = req.body;
+
+  try {
+    // Find the user
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Check if current password matches
+    const isMatch = await user.comparePassword(currentPassword);
+    if (!isMatch) {
+      return res.status(400).json({ error: 'Current password is incorrect' });
+    }
+
+    // Validate new password (length, complexity, etc.)
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'New password must be at least 6 characters long' });
+    }
+
+    // Hash the new password and save
+    user.password = newPassword; // This will trigger the pre-save hook to hash it
+    await user.save();
+
+    res.status(200).json({ message: 'Password changed successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;

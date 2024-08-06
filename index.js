@@ -11,6 +11,7 @@ const tagscontroller = require("./controller/tag-controller")
 const noteController = require('./controller/note-controller')
 const proofIdsController = require('./controller/proofid-controller')
 const cardControlller = require('./controller/card-controller')
+const securityQuestionRoutes = require('./controller/securityQuestion')
 const auth = require("./middleware")
 app.use(cors());
 app.use(express.json());
@@ -21,6 +22,7 @@ app.use("/api/tags", tagscontroller)
 app.use("/api/notes",noteController)
 app.use("/api/proofIds",proofIdsController)
 app.use("/api/cards",cardControlller)
+app.use('/api/security-questions', securityQuestionRoutes);
 
 app.get("/", (req, res) => {
   res.send("Hello World");
