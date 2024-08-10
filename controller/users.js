@@ -50,7 +50,7 @@ router.post('/register', async (req, res) => {
       <p>Thanks,</p>
       <p>Password Management APP</p>`
     };
-
+    
     transporter.sendMail(mailOptions, async (error, info) => {
       if (error) {
         console.log('Error occurred while sending email:', error);
@@ -106,16 +106,19 @@ router.post('/login', async (req, res) => {
 // Get user profile
 router.get('/profile/', async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
+    // Find the user by ID and populate the organization field
+    const user = await User.findById(req.user._id).populate('organization');
     if (!user) {
       return res.status(404).send({ message: 'User not found' });
     }
+    // Send user details along with populated organization information
     res.status(200).send(user);
   } catch (error) {
     console.error(error);
     res.status(500).send({ message: 'Error getting user profile', error });
   }
 });
+
 
 // Update user profile
 router.put('/profile', async (req, res) => {
