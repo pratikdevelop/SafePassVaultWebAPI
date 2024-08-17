@@ -1,9 +1,7 @@
-const express = require('express');
-const router = express.Router();
-const Tag = require('../model/passwordtag'); // Import your Tag model
+const Tag = require('../model/passwordtag');
 
 // Create a new tag
-router.post('/tag', async (req, res) => {
+exports.createTag = async (req, res) => {
     try {
         const tag = new Tag(req.body);
         await tag.save();
@@ -11,20 +9,20 @@ router.post('/tag', async (req, res) => {
     } catch (error) {
         res.status(400).json({ error: error.message });
     }
-});
+};
 
 // Get all tags
-router.get('/', async (req, res) => {
+exports.getAllTags = async (req, res) => {
     try {
         const tags = await Tag.find();
         res.json(tags);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
-});
+};
 
 // Get a specific tag
-router.get('/:id', async (req, res) => {
+exports.getTagById = async (req, res) => {
     try {
         const tag = await Tag.findById(req.params.id);
         if (!tag) {
@@ -34,10 +32,10 @@ router.get('/:id', async (req, res) => {
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
-});
+};
 
 // Update a tag
-router.put('/:id', async (req, res) => {
+exports.updateTag = async (req, res) => {
     try {
         const tag = await Tag.findByIdAndUpdate(req.params.id, req.body, { new: true });
         if (!tag) {
@@ -47,10 +45,10 @@ router.put('/:id', async (req, res) => {
     } catch (error) {
         res.status(400).json({ error: error.message });
     }
-});
+};
 
 // Delete a tag
-router.delete('/:id', async (req, res) => {
+exports.deleteTag = async (req, res) => {
     try {
         const tag = await Tag.findByIdAndDelete(req.params.id);
         if (!tag) {
@@ -60,8 +58,10 @@ router.delete('/:id', async (req, res) => {
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
-});
-router.get('/search/:name', async (req, res) => {
+};
+
+// Search for tags by name
+exports.searchTagsByName = async (req, res) => {
     try {
         const { name } = req.params;
         const tags = await Tag.find({ name: { $regex: new RegExp(name, 'i') } });
@@ -69,7 +69,4 @@ router.get('/search/:name', async (req, res) => {
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
-});
-
-
-module.exports = router;
+};

@@ -1,14 +1,11 @@
-const express = require('express');
-const router = express.Router();
 const SecurityQuestion = require('../model/securityQuestion');
 
 // Add or update security questions for a user
-router.post('/', async (req, res) => {
+exports.addOrUpdateSecurityQuestions = async (req, res) => {
   try {
-    const  userId = req.user._id;
+    const userId = req.user._id;
     const securityQuestions = req.body; // Expecting an array of security questions and answers
 
-    console.log('ff',  securityQuestions)
     if (!Array.isArray(securityQuestions) || securityQuestions.length === 0) {
       return res.status(400).json({ error: 'Invalid securityQuestions array' });
     }
@@ -24,22 +21,21 @@ router.post('/', async (req, res) => {
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
-});
+};
 
 // Get all security questions for a user
-router.get('', async (req, res) => {
-
+exports.getSecurityQuestions = async (req, res) => {
   try {
-    const userId = req.user._id
-    const questions = await SecurityQuestion.find({ userId:userId });
+    const userId = req.user._id;
+    const questions = await SecurityQuestion.find({ userId: userId });
     res.status(200).json(questions);
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
-});
+};
 
 // Update a security question
-router.put('/:id', async (req, res) => {
+exports.updateSecurityQuestion = async (req, res) => {
   try {
     const { question, answer } = req.body;
     const updatedQuestion = await SecurityQuestion.findByIdAndUpdate(
@@ -52,10 +48,10 @@ router.put('/:id', async (req, res) => {
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
-});
+};
 
 // Delete a security question
-router.delete('/:id', async (req, res) => {
+exports.deleteSecurityQuestion = async (req, res) => {
   try {
     const deletedQuestion = await SecurityQuestion.findByIdAndDelete(req.params.id);
     if (!deletedQuestion) return res.status(404).json({ error: 'Question not found' });
@@ -63,6 +59,4 @@ router.delete('/:id', async (req, res) => {
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
-});
-
-module.exports = router;
+};
