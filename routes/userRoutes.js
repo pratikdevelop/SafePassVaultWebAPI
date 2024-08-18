@@ -10,8 +10,12 @@ router.get('/profile', userController.getProfile);
 router.patch('/profile', userController.updateProfile);
 router.delete('/profile', userController.deleteProfile);
 router.post('/reset-password', userController.resetPassword);
+router.patch('/change-password/:id', userController.changePassword)
 router.get('/verify-reset-link', userController.verifyResetLink);
 router.post('/organization', userController.createOrganization);
-router.post('/organization/:organizationId/invite', userController.sendInvitation);
+router.get('/organizations', userController.getOrganizations)
+router.post('/organizations/:organizationId/invitations', userController.sendInvitation);
+router.post('/accept-invitation', userController.acceptInvitation)
+router.get('/users', userController.getAllUsers)
 
 module.exports = router;

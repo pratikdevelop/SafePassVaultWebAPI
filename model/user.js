@@ -16,7 +16,6 @@ const userSchema = new mongoose.Schema({
   },
   password: {
     type: String,
-    required: true,
   },
   role: {
     type: String,
@@ -24,7 +23,6 @@ const userSchema = new mongoose.Schema({
   },
   confirmationCode: {
     type: String,
-    required: true,
   },
   phone: {
     type: Number,
