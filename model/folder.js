@@ -8,26 +8,16 @@ const folderSchema = new mongoose.Schema({
     },
     name: {
         type: String,
-        required: true
-    },
-    parentFolder: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Folder',
-        default: null
-    },
-    createdAt: {
-        type: Date,
-        default: Date.now, // Set the default value to the current timestamp
-    },
-    updatedAt: {
-        type: Date,
-        default: Date.now, // Set the default value to the current timestamp
-    },
+        required: true,
+        trim: true // Trim whitespace around folder names
+    }
+}, {
+    timestamps: true // Automatically manage createdAt and updatedAt
 });
 
+// Index for faster searching
+folderSchema.index({ name: 1, user: 1 });
 
 const Folder = mongoose.model('Folder', folderSchema);
 
 module.exports = Folder;
-
-

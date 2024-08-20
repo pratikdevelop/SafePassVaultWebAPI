@@ -2,15 +2,18 @@ const File = require('../model/file-storage');
 const mongoose = require('mongoose');
 const fs = require('fs');
 const path = require('path');
+const Folder = require('../model/folder')
+const Invitation = require('../model/Invitation'); // Adjust the path as needed
+const User = require('../model/user');
 
 module.exports = {
   uploadFile: async (req, res) => {
     try {
       const { originalname, path: filePath, size } = req.file;
-      const { folderId, ownerId, sharedWith, encrypted, offlineAccess } = req.body;
+      const { folderId, sharedWith, encrypted, offlineAccess } = req.body;
 
       // Validate inputs
-      if (!originalname || !filePath || !size || !ownerId) {
+      if (!originalname || !filePath || !size) {
         return res.status(400).json({ message: 'Missing required fields' });
       }
 
@@ -21,8 +24,8 @@ module.exports = {
         path: filePath,
         size,
         sharedWith,
-        folderId: folderId ? mongoose.Types.ObjectId(folderId) : null,
-        ownerId: mongoose.Types.ObjectId(ownerId),
+        folderId: folderId ? folderId : null,
+        ownerId: req.user._id,
         encrypted: encrypted || false,
         offlineAccess: offlineAccess || false,
       });
@@ -123,6 +126,108 @@ module.exports = {
       res.status(200).json({ message: 'File permanently deleted' });
     } catch (error) {
       res.status(500).json({ message: 'Error permanently deleting file', error: error.message });
+    }
+  },
+  createFolder: async (req, res) => {
+    try {
+      const ownerId = req.user._id;
+      const { name, parentId } = req.body;
+
+      // Validate inputs
+      if (!name || !ownerId) {
+        return res.status(400).json({ message: 'Folder name and owner ID are required' });
+      }
+
+      // Check if a folder with the same name exists in the same parent folder
+      const existingFolder = await Folder.findOne({ name, ownerId, parentId });
+      if (existingFolder) {
+        return res.status(409).json({ message: 'Folder with this name already exists' });
+      }
+
+      // Create folder document
+      const newFolder = new Folder({
+        name,
+        user: ownerId,
+        parentId: parentId ? parentId : null,
+      });
+
+      await newFolder.save();
+      res.status(201).json({ message: 'Folder created successfully', folder: newFolder });
+    } catch (error) {
+      res.status(500).json({ message: 'Error creating folder', error: error.message });
+    }
+  },
+  searchFolders: async (req, res) => {
+    try {
+      const ownerId = req.user._id;
+      const { searchTerm } = req.query;
+      console.log('owner,', ownerId);
+      
+
+      // Validate inputs
+      if (!searchTerm || !ownerId) {
+        return res.status(400).json({ message: 'Search term and owner ID are required' });
+      }
+
+
+      // Perform a case-insensitive search
+      const folders = await Folder.find({
+        name: { $regex: new RegExp(searchTerm, 'i') }, // Case-insensitive search
+        user: ownerId // Ensure ownerId is valid ObjectId
+      }).exec(); // Ensure the query executes
+
+      res.status(200).json(folders);
+    } catch (error) {
+      console.error('Error searching folders:', error);
+      res.status(500).json({ message: 'Error searching folders', error: error.message });
+    }
+  },
+  
+  searchUsers: async (req, res) => {
+    try {
+      const senderId = req.user._id; // Get the sender ID from the request user
+      const { searchTerm } = req.params;
+      console.log('searchTerm', searchTerm);
+
+      if (!senderId) {
+        return res.status(400).json({ message: 'Sender ID is required' });
+      }
+
+      // If no search term is provided, return an empty array or a message
+      if (!searchTerm) {
+        return res.status(400).json({ message: 'Search term is required' });
+      }
+
+      // Perform a case-insensitive search on name or email
+      const invitations = await Invitation.aggregate([
+        {
+          $match: { sender: senderId }
+        },
+        {
+          $lookup: {
+            from: 'users', // Collection name in MongoDB
+            localField: 'recipient',
+            foreignField: '_id',
+            as: 'recipientDetails'
+          }
+        },
+        {
+          $unwind: '$recipientDetails'
+        },
+        {
+          $match: {
+            $or: [
+              { 'recipientDetails.name': { $regex: new RegExp(searchTerm, 'i') } },
+              { 'recipientDetails.email': { $regex: new RegExp(searchTerm, 'i') } }
+            ]
+          }
+        }
+      ]);
+
+      res.status(200).json(invitations);
+    } catch (error) {
+      console.error('Error searching invitations:', error);
+      res.status(500).json({ message: 'Error searching invitations', error: error.message });
     }
   }
 };

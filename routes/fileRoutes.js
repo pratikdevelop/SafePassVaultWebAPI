@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const fileController = require('../controllers/fileController');
+const fileController = require('../controllers/filecontroller');
 const multer = require('multer');
 
 // Setup multer for file upload handling
@@ -25,5 +25,10 @@ router.patch('/:id/restore', fileController.restoreFile);
 
 // Route to permanently delete a file
 router.delete('/:id/permanently', fileController.permanentlyDeleteFile);
+
+router.post('/folder', fileController.createFolder);
+router.get('/folders/search', fileController.searchFolders);
+router.get('/searchUsers/:searchTerm', fileController.searchUsers)
+
 
 module.exports = router;

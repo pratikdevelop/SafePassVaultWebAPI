@@ -1,7 +1,6 @@
 const express = require("express");
 const User = require("../model/user");
 const Organization = require("../model/Organization");
-const Invitation = require("../model/Invitation");
 const nodemailer = require("nodemailer");
 const crypto = require("crypto");
 const { v4: uuidv4 } = require('uuid');
@@ -365,6 +364,8 @@ exports.sendInvitation = async (req, res) => {
 
     await invitation.save();
 
+    sender.invitation.push(invitation._id);
+    await sender.save();
     // Send email invitation
     const mailOptions = {
       from: "passwordmanagementapp@gmail.com",
