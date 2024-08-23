@@ -17,5 +17,6 @@ router.get('/organizations', userController.getOrganizations)
 router.post('/organizations/:organizationId/invitations', userController.sendInvitation);
 router.post('/accept-invitation', userController.acceptInvitation)
 router.get('/users', userController.getAllUsers)
+router.post('/mfa-settings', userController.saveMfaSettings)
 
 module.exports = router;

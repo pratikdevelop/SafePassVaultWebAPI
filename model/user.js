@@ -2,6 +2,8 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
+const speakeasy = require('speakeasy'); // For TOTP
+
 
 const userSchema = new mongoose.Schema({
   name: {
@@ -101,7 +103,28 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
-  favorites: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Password' }]
+  favorites: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Password' }],
+  
+  // MFA Fields
+  mfaEnabled: {
+    type: Boolean,
+    default: false,
+  },
+  mfaMethod: {
+    type: String,
+    enum: ['email', 'sms', 'totp'],
+    default: 'email',
+  },
+  totpSecret: {
+    type: String,
+  },
+
+  // Passphrase Field
+  passphrase: {
+    type: String,
+    // Optional: Add validation rules based on your requirements
+    minlength: 6, // Example: minimum length
+  },
 });
 
 // Password hashing middleware
@@ -110,8 +133,11 @@ userSchema.pre('save', async function(next) {
     return next();
   }
 
-  const salt = await bcrypt.genSalt(10);
-  this.password = await bcrypt.hash(this.password, salt);
+  if (this.isModified('passphrase')) {
+    const salt = await bcrypt.genSalt(10);
+    this.passphrase = await bcrypt.hash(this.passphrase, salt);
+  }
+
   next();
 });
 
@@ -150,7 +176,7 @@ userSchema.methods.verifyResetToken = async function(token, user) {
     if (!isMatch) {
       return false;
     }
-    if (this.resetToken.expiry && new Date(this.resetToken.expiry) < new Date()) {
+    if (user.resetTokenExpiry && new Date(user.resetTokenExpiry) < new Date()) {
       return false;
     }
     return true;
@@ -158,6 +184,19 @@ userSchema.methods.verifyResetToken = async function(token, user) {
     console.error(error);
     return false;
   }
+};
+userSchema.methods.generateTotpSecret = function () {
+  const secret = speakeasy.generateSecret();
+  this.totpSecret = secret.base32; // Save base32 secret for TOTP verification
+  return secret;
+};
+
+userSchema.methods.verifyTotpCode = function (token) {
+  return speakeasy.totp.verify({
+    secret: this.totpSecret,
+    encoding: 'base32',
+    token
+  });
 };
 
 module.exports = mongoose.model('User', userSchema);

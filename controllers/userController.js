@@ -1,11 +1,12 @@
-const express = require("express");
+
 const User = require("../model/user");
 const Organization = require("../model/Organization");
 const nodemailer = require("nodemailer");
 const crypto = require("crypto");
 const { v4: uuidv4 } = require('uuid');
-
 const bcrypt = require("bcryptjs");
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const { client } = require('../paypalClient'); // PayPal client configuration
 
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
@@ -16,8 +17,15 @@ const transporter = nodemailer.createTransport({
     pass: process.env.EMAIL_PASSWORD,
   },
 });
-
-// Registration endpoint
+const twilio  = require('twilio')
+const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+const PLAN_PRICING = {
+  free: 0,
+  basic: 500,
+  premium: 1000,
+  teams: 400, // Per user, so multiply by the number of users
+  enterprise: 600 // Per user, so multiply by the number of users
+};
 exports.registerUser = async (req, res) => {
   try {
     const {
@@ -35,8 +43,12 @@ exports.registerUser = async (req, res) => {
       cardNumber,
       expiryDate,
       cvv,
+      planType,
+      numberOfUsers = 1, // Default to 1 if not provided
+      paymentProvider // 'stripe' or 'paypal'
     } = req.body;
 
+    // Check if billing/payment information is required
     if (
       role &&
       (!billingAddress ||
@@ -44,19 +56,96 @@ exports.registerUser = async (req, res) => {
         !state ||
         !postalCode ||
         !country ||
-        !paymentMethod ||
-        !cardNumber ||
-        !expiryDate ||
-        !cvv)
+        !paymentProvider ||
+        (paymentProvider === 'stripe' && (!cardNumber || !expiryDate || !cvv)))
     ) {
-      return res
-        .status(400)
-        .send({
-          message:
-            "Billing and payment information is required for paid plans.",
-        });
+      return res.status(400).send({
+        message: "Billing and payment information is required for paid plans.",
+      });
     }
 
+    // Validate plan type
+    const PLAN_PRICING = {
+      free: 0,
+      basic: 5,
+      premium: 10,
+      teams: 4, // per user
+      enterprise: 6 // per user
+    };
+
+    if (!PLAN_PRICING.hasOwnProperty(planType)) {
+      return res.status(400).send({ message: "Invalid plan type." });
+    }
+
+    // Calculate amount based on plan type and number of users
+    const baseAmount = PLAN_PRICING[planType];
+    const totalAmount = (planType === 'teams' || planType === 'enterprise')
+      ? baseAmount * numberOfUsers
+      : baseAmount;
+
+    // Handle Stripe payment
+    if (paymentProvider === 'stripe') {
+      const stripe = require('stripe')('your-stripe-secret-key');
+      
+      // Create a customer in Stripe
+      const customer = await stripe.customers.create({
+        email,
+        source: {
+          object: 'card',
+          number: cardNumber,
+          exp_month: parseInt(expiryDate.split('/')[0], 10),
+          exp_year: parseInt(expiryDate.split('/')[1], 10),
+          cvc: cvv
+        },
+      });
+
+      // Create a payment intent
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: totalAmount * 100, // Convert dollars to cents
+        currency: 'usd',
+        customer: customer.id,
+        payment_method: customer.default_source,
+        confirm: true,
+      });
+
+      // Handle payment confirmation
+      if (paymentIntent.status !== 'succeeded') {
+        return res.status(400).send({ message: 'Payment failed, please try again.' });
+      }
+    }
+    // Handle PayPal payment
+    else if (paymentProvider === 'paypal') {
+      const paypal = require('@paypal/checkout-server-sdk');
+      const client = () => {
+        return new paypal.core.PayPalHttpClient(new paypal.core.SandboxEnvironment('your-paypal-client-id', 'your-paypal-client-secret'));
+      };
+
+      const request = new paypal.orders.OrdersCreateRequest();
+      request.prefer("return=representation");
+      request.requestBody({
+        intent: 'CAPTURE',
+        purchase_units: [{
+          amount: {
+            currency_code: 'USD',
+            value: (totalAmount / 100).toFixed(2) // Convert cents to dollars
+          }
+        }]
+      });
+
+      const order = await client().execute(request);
+
+      // Send PayPal approval link to the client
+      res.status(201).send({
+        approval_url: order.result.links.find(link => link.rel === 'approve').href
+      });
+
+      return;
+    }
+    else {
+      return res.status(400).send({ message: "Invalid payment provider." });
+    }
+
+    // Create the user and organization
     const user = new User({
       email,
       password,
@@ -69,10 +158,10 @@ exports.registerUser = async (req, res) => {
       postalCode,
       country,
       paymentMethod,
-      cardNumber,
-      expiryDate,
-      cvv,
+      planType,
+      numberOfUsers
     });
+
     const confirmationCode = user.generateConfirmationCode();
     user.confirmationCode = confirmationCode;
 
@@ -83,6 +172,7 @@ exports.registerUser = async (req, res) => {
 
     user.organization.push(organization._id);
 
+    // Send confirmation email
     const mailOptions = {
       from: "passwordmanagementapp@gmail.com",
       to: email,
@@ -97,21 +187,18 @@ exports.registerUser = async (req, res) => {
     transporter.sendMail(mailOptions, async (error, info) => {
       if (error) {
         console.log("Error occurred while sending email:", error);
-        return res
-          .status(500)
-          .send({ message: "Error occurred while sending email" });
+        return res.status(500).send({ message: "Error occurred while sending email" });
       } else {
         await user.save();
         await organization.save();
-        console.log("Email sent:", info.response);
-        res
-          .status(201)
-          .send({
-            message: `User created successfully. Verification code sent to ${email}`,
-          });
+        res.status(201).send({
+          message: `User created successfully. Verification code sent to ${email}`,
+        });
       }
     });
+
   } catch (error) {
+    console.error("Error creating user:", error);
     res.status(400).send({ message: `Error creating user: ${error.message}` });
   }
 };
@@ -131,6 +218,7 @@ exports.confirmEmail = async (req, res) => {
       return res.status(400).send({ message: "Invalid confirmation code" });
     }
     user.emailConfirmed = true;
+    const secret = user.generateTotpSecret(); // Generate TOTP secret
     const token = user.generateAuthToken();
     res.status(200).send({ message: "Email confirmed successfully", token });
   } catch (error) {
@@ -502,3 +590,115 @@ exports.acceptInvitation = async (req, res) => {
     res.status(500).json({ message: 'Error accepting invitation' });
   }
 };
+
+exports.saveMfaSettings = async (req, res) => {
+  try {
+    const userId = req.user._id; // From auth middleware
+    const { mfaEnabled, mfaMethod, totpSecret } = req.body;
+
+    // Find the user and update MFA settings
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).send('User not found');
+    }
+
+    user.mfaEnabled = mfaEnabled;
+    user.mfaMethod = mfaMethod;
+    if (mfaMethod === 'totp') {
+      user.totpSecret = totpSecret; // Ensure this is securely handled
+    } else {
+      user.totpSecret = null; // Clear TOTP secret if not using TOTP
+    }
+
+    await user.save();
+    res.status(200).json({message:'MFA settings updated successfully'});
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({message:'Server error'});
+  }
+};
+
+exports.verifyMfaCode = async (req, res) => {
+  const { userId, mfaCode } = req.body;
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).send({ message: 'User not found' });
+    }
+
+    if (user.mfaCode !== mfaCode || user.mfaCodeExpiry < Date.now()) {
+      return res.status(400).send({ message: 'Invalid or expired MFA code' });
+    }
+
+    user.mfaCode = undefined; // Clear MFA code
+    user.mfaCodeExpiry = undefined; // Clear MFA code expiry
+
+    await user.save();
+
+    const token = user.generateAuthToken();
+    res.status(200).send({ token });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ message: 'Error verifying MFA code' });
+  }
+};
+
+exports.loginUser = async (req, res) => {
+  const { username, password } = req.body;
+  try {    
+    const user = await User.findByCredentials(username, password);
+
+    if (!user.emailConfirmed) {
+      return res.status(400).send({ message: 'Email not confirmed' });
+    }
+
+    if (user.mfaEnabled) {
+      const mfaCode = uuidv4();
+      user.mfaCode = mfaCode; // Store MFA code temporarily
+      user.mfaCodeExpiry = Date.now() + 300000; // MFA code expires in 5 minutes
+      await user.save();
+
+      // Send MFA code based on user's MFA method
+      if (user.mfaMethod === 'email') {
+        const mailOptions = {
+          from: 'passwordmanagementapp@gmail.com',
+          to: user.email,
+          subject: 'Your MFA Code',
+          html: `<b>Hi ${user.name}</b>,
+                 <p>Your MFA code is: <strong>${mfaCode}</strong></p>
+                 <p>Please enter this code to complete your login.</p>
+                 <p>Thanks,<br>Password Management APP</p>`,
+        };
+
+        transporter.sendMail(mailOptions, (error) => {
+          if (error) {
+            return res.status(500).send({ message: 'Error sending MFA code via email' });
+          }
+          res.status(200).send({ message: 'MFA code sent via email' , mfaRequired: true, mfaMethod: user.mfaMethod});
+        });
+      } else if (user.mfaMethod === 'sms') {
+        twilioClient.messages.create({
+          body: `Your MFA code is: ${mfaCode}`,
+          from: process.env.TWILIO_PHONE_NUMBER,
+          to: user.phone,
+        }, (error) => {
+          if (error) {
+            return res.status(500).send({ message: 'Error sending MFA code via SMS' });
+          }
+          res.status(200).send({ message: 'MFA code sent via SMS', userId: user._id , mfaRequired: true, mfaMethod: user.mfaMethod});
+        });
+      } else if (user.mfaMethod === 'totp') {
+        res.status(200).send({ message: 'TOTP MFA enabled', userId: user._id, mfaRequired: true, mfaMethod: user.mfaMethod });
+      } else {
+        res.status(400).send({ message: 'Unsupported MFA method' });
+      }
+    } else {
+      const token = user.generateAuthToken();
+      res.status(200).send({ token });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(400).send({ message: 'Invalid email or password' });
+  }
+};
+
