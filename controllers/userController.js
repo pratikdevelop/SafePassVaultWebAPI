@@ -7,6 +7,7 @@ const { v4: uuidv4 } = require('uuid');
 const bcrypt = require("bcryptjs");
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const { client } = require('../paypalClient'); // PayPal client configuration
+const paypal = require('@paypal/checkout-server-sdk');
 
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
@@ -85,8 +86,6 @@ exports.registerUser = async (req, res) => {
 
     // Handle Stripe payment
     if (paymentProvider === 'stripe') {
-      const stripe = require('stripe')('your-stripe-secret-key');
-      
       // Create a customer in Stripe
       const customer = await stripe.customers.create({
         email,
@@ -115,11 +114,6 @@ exports.registerUser = async (req, res) => {
     }
     // Handle PayPal payment
     else if (paymentProvider === 'paypal') {
-      const paypal = require('@paypal/checkout-server-sdk');
-      const client = () => {
-        return new paypal.core.PayPalHttpClient(new paypal.core.SandboxEnvironment('your-paypal-client-id', 'your-paypal-client-secret'));
-      };
-
       const request = new paypal.orders.OrdersCreateRequest();
       request.prefer("return=representation");
       request.requestBody({
@@ -135,11 +129,9 @@ exports.registerUser = async (req, res) => {
       const order = await client().execute(request);
 
       // Send PayPal approval link to the client
-      res.status(201).send({
+      return res.status(201).send({
         approval_url: order.result.links.find(link => link.rel === 'approve').href
       });
-
-      return;
     }
     else {
       return res.status(400).send({ message: "Invalid payment provider." });
@@ -202,7 +194,6 @@ exports.registerUser = async (req, res) => {
     res.status(400).send({ message: `Error creating user: ${error.message}` });
   }
 };
-
 // Confirm email endpoint
 exports.confirmEmail = async (req, res) => {
   const { email, confirmationCode } = req.body;
