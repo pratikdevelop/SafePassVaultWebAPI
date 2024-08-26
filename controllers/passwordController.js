@@ -3,6 +3,7 @@ const User = require('../model/user');
 const jwt = require('jsonwebtoken');
 const CryptoJS = require('crypto-js');
 const mongoose = require('mongoose');
+const SharedItem = require('../model/shareItem'); // Assuming this is your SharedItem model
 
 // Get all passwords with pagination, sorting, and searching
 exports.getAllPasswords = async (req, res) => {
@@ -24,15 +25,34 @@ exports.getAllPasswords = async (req, res) => {
         }
       : {};
 
-    const passwords = await Password.find({ created_by: userId, ...searchQuery })
+    // Find passwords created by the user
+    const createdPasswords = await Password.find({ created_by: userId, ...searchQuery })
       .populate('tags')
       .sort(sortOption)
       .skip((page - 1) * limit)
       .limit(Number(limit));
 
+    // Find passwords shared with the user
+    const sharedItems = await SharedItem.find({ 
+      itemType: 'password', 
+      'sharedWith.userId': userId 
+    });
+
+    const sharedPasswordIds = sharedItems.map(item => item.itemId);
+
+    const sharedPasswords = await Password.find({ 
+      _id: { $in: sharedPasswordIds }, 
+      ...searchQuery 
+    })
+    .populate('tags')
+    .sort(sortOption);
+
+    // Combine created and shared passwords
+    const allPasswords = [...createdPasswords, ...sharedPasswords];
+
     const user = await User.findById(userId);
 
-    const enhancedPasswords = passwords.map(password => {
+    const enhancedPasswords = allPasswords.map(password => {
       const isFavorite = user.favorites.includes(password._id);
       return {
         ...password.toObject(),
@@ -40,7 +60,7 @@ exports.getAllPasswords = async (req, res) => {
       };
     });
 
-    const totalCount = await Password.countDocuments({ created_by: userId, ...searchQuery });
+    const totalCount = createdPasswords.length + sharedPasswords.length;
 
     res.json({
       data: enhancedPasswords,
@@ -149,28 +169,29 @@ exports.getSharedPassword = async (req, res) => {
 exports.toggleFavorite = async (req, res) => {
   try {
     const userId = req.user._id;
-    const passwordId = req.params.passwordId;
-
-    const password = await Password.findById(passwordId);
-    if (!password) {
-      return res.status(404).json({ message: 'Password not found' });
-    }
-
+    const passwordIds = req.params.passwordId.split(',');
+  
     const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
-
-    const favoriteIndex = user.favorites.indexOf(passwordId);
-    if (favoriteIndex > -1) {
-      user.favorites.splice(favoriteIndex, 1);
-      await user.save();
-      return res.status(200).json({ message: 'Password removed from favorites' });
-    } else {
-      user.favorites.push(passwordId);
-      await user.save();
-      return res.status(200).json({ message: 'Password added to favorites' });
+  
+    for (const id of passwordIds) {
+      const password = await Password.findById(id);
+      if (!password) {
+        return res.status(404).json({ message: `Password with ID ${id} not found` });
+      }
+  
+      const favoriteIndex = user.favorites.indexOf(id);
+      if (favoriteIndex > -1) {
+        user.favorites.splice(favoriteIndex, 1);
+      } else {
+        user.favorites.push(id);
+      }
     }
+  
+    await user.save();
+    return res.status(200).json({ message: 'Favorites updated successfully' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Error updating favorites' });

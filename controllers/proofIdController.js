@@ -3,6 +3,8 @@ const ProofId = require('../model/proofid'); // Assuming the schema file is name
 // Create a new proof ID
 exports.createProofId = async (req, res) => {
   try {
+    const userId = req.user._id;
+    req.body.userId = userId;
     const proofId = new ProofId(req.body);
     await proofId.save();
     res.status(201).send(proofId);
@@ -15,8 +17,11 @@ exports.createProofId = async (req, res) => {
 // Get all proof IDs
 exports.getAllProofIds = async (req, res) => {
   try {
-    const proofIds = await ProofId.find({});
-    res.send(proofIds);
+    const proofIds = await ProofId.find({}).populate({
+      path: 'userId',
+      select: 'name email'
+    });
+    res.status(200).json({proofIds});
   } catch (error) {
     console.error("Error retrieving proof IDs:", error);
     res.status(500).send(error);

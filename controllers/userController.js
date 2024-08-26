@@ -8,7 +8,7 @@ const bcrypt = require("bcryptjs");
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const { client } = require('../paypalClient'); // PayPal client configuration
 const paypal = require('@paypal/checkout-server-sdk');
-
+const Invitation = require('../model/Invitation')
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
   port: 587,
@@ -240,8 +240,13 @@ exports.getAllUsers = async(req, res)=>{
       const userId = req.user._id;
   
       // Find all invitations where the sender is the current user
-      const invitations = await Invitation.find({ sender: userId }).populate('recipient');
-  
+ const invitations = await Invitation.find({ sender: userId })
+      .populate({
+        path: 'recipient',
+        select: 'name email phone'  // Select only name and email from recipient
+      })
+      .select('status organization createdAt') // Select only these fields from Invitation
+      .exec();
       // Send the invitations as the response
       res.status(200).json(invitations);
     } catch (error) {
@@ -249,6 +254,7 @@ exports.getAllUsers = async(req, res)=>{
       res.status(500).json({ message: 'Error retrieving invitations' });
     }
 }
+
 
 // Get user profile
 exports.getProfile = async (req, res) => {
@@ -316,25 +322,34 @@ exports.resetPassword = async (req, res) => {
     }
     const resetToken = crypto.randomBytes(32).toString("hex");
     const resetTokenExpiry = Date.now() + 600000; // 10 minutes in milliseconds
+
+    // Update the user with the reset token and expiry
     await User.updateOne(
       { _id: user._id },
       { $set: { resetToken, resetTokenExpiry } }
     );
+    // Create a payload with user ID and token, then encode it
+    const payload = `${user._id}:${resetToken}`;
+    const encodedToken = Buffer.from(payload).toString('base64');
 
+    // Create the reset link
+    const resetLink = `http://localhost:4200/auth/change-password?token=${encodedToken}`;
+
+    // Configure the email options
     const mailOptions = {
       from: "passwordmanagementapp@gmail.com",
       to: email,
-      subject: "Password Reset Token",
+      subject: "Password Reset Link",
       html: `<b>Hi ${user.name}</b>,
-             <p>We received a request to reset your password. Here is your password reset token:</p>
-             <p><strong>${resetToken}</strong></p>
-             <p>Please use this token to complete the password reset process. This token is valid for 10 minutes.</p>
+             <p>We received a request to reset your password. Click the link below to reset your password:</p>
+             <p><a href="${resetLink}">Reset Password</a></p>
+             <p>This link is valid for 10 minutes.</p>
              <p>If you did not request a password reset, please ignore this email.</p>
              Thanks,<br>
              Password Management APP`,
     };
 
-    transporter.sendMail(mailOptions, async (error, info) => {
+    transporter.sendMail(mailOptions, async (error, ) => {
       if (error) {
         res.status(500).send({ message: "Error sending email" });
       } else {
