@@ -57,15 +57,6 @@ const userSchema = new mongoose.Schema({
   state: String,
   postalCode: String,
   country: String,
-  paymentMethod: {
-    type: String,
-    validate: {
-      validator: function(value) {
-        return (this.role === 'admin' || value);
-      },
-      message: 'Payment method is required for paid plans.'
-    }
-  },
   cardNumber: {
     type: String,
     validate: {
