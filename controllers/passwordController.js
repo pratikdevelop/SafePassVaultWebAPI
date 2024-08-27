@@ -5,6 +5,7 @@ const CryptoJS = require('crypto-js');
 const mongoose = require('mongoose');
 const SharedItem = require('../model/shareItem'); // Assuming this is your SharedItem model
 const { parse } = require('json2csv');
+const Tag = require('../model/tag')
 
 
 // Get all passwords with pagination, sorting, and searching
@@ -39,7 +40,7 @@ exports.getAllPasswords = async (req, res) => {
       itemType: 'password', 
       'sharedWith.userId': userId 
     }).populate('itemId');
-    
+
     const sharedPasswordIds = sharedItems.map(item => item.itemId);
 
     const sharedPasswords = await Password.find({ 
@@ -47,20 +48,24 @@ exports.getAllPasswords = async (req, res) => {
       ...searchQuery 
     })
     .populate('tags')
-    .sort(sortOption).merge(sharedItems);
-    console.log('dd', sharedPasswords);
-    
+    .sort(sortOption);
 
     // Combine created and shared passwords
     const allPasswords = [...createdPasswords, ...sharedPasswords];
 
+    // Enhance with shared item data
     const user = await User.findById(userId);
 
     const enhancedPasswords = allPasswords.map(password => {
       const isFavorite = user.favorites.includes(password._id);
+      const sharedItem = sharedItems.find(item => item.itemId.toString() === password._id.toString());
+
       return {
         ...password.toObject(),
-        isFavorite
+        isFavorite,
+        sharedItem: sharedItem ? 
+           sharedItem.sharedWith.find(sw => sw.userId.toString() === userId.toString()): null
+        
       };
     });
 
@@ -80,6 +85,8 @@ exports.getAllPasswords = async (req, res) => {
     res.status(500).json({ message: "Error fetching passwords" });
   }
 };
+
+
 
 // Create a new password
 exports.createPassword = async (req, res) => {
@@ -218,3 +225,39 @@ exports.exportAllPasswords = async(req, res) => {
       res.status(500).send(error);
     }
 }
+exports.addTag = async (req, res) => {
+  const { tagName, passwordId } = req.body;
+
+  try {
+    // Check if the tag already exists
+    let tag = await Tag.findOne({ name: tagName });
+
+    if (!tag) {
+      // If tag does not exist, create a new one
+      tag = new Tag({ name: tagName });
+      await tag.save();
+    }
+
+    // Find the password by ID and add the tag reference
+    const password = await Password.findById(passwordId);
+
+    if (!password) {
+      return res.status(404).json({ error: 'Password not found' });
+    }
+    if (!password.tags) {
+      password.tags = [];
+    }
+
+    // Add the tag reference to the password if not already added
+    if (!password.tags?.includes(tag._id)) {
+      password.tags.push(tag._id);
+      await password.save();
+    }
+
+    res.json({ message: 'Tag added to password successfully', tag, password });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'An error occurred while adding the tag' });
+  }
+};

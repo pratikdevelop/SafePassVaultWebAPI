@@ -24,5 +24,6 @@ router.get('/share/:passwordId/:shareToken', passwordController.getSharedPasswor
 router.post('/password/:passwordId/favorite', passwordController.toggleFavorite);
 
 router.get('/export', passwordController.exportAllPasswords);
+router.post('/add-tag',  passwordController.addTag)
 
 module.exports = router;

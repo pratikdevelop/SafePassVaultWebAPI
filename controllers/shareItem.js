@@ -7,7 +7,7 @@ const Note = require('../model/note');
 const Identity = require('../model/proofid');
 exports.shareItem = async (req, res) => {
   try {
-    const { itemType, itemId, users, permissions } = req.body; // `users` is an array of user objects
+    const { itemType, itemId, users } = req.body; // `users` is an array of user objects
     const ownerId = req.user._id;
 
     // Validate the item based on its type
@@ -28,9 +28,20 @@ exports.shareItem = async (req, res) => {
         users.forEach(user => {
           const existingShare = sharedItem.sharedWith.find(share => share.userId.equals(user.userId));
           if (existingShare) {
-            existingShare.permissions = user.permissions; // Update permissions if the user already has access
+            existingShare.permissions = {
+              view: user.permissions.includes('view'),
+              edit: user.permissions.includes('edit'),
+              delete: user.permissions.includes('delete')
+            }; // Update permissions if the user already has access
           } else {
-            sharedItem.sharedWith.push({ userId: user.userId, permissions: user.permissions }); // Add new user with permissions
+            sharedItem.sharedWith.push({
+              userId: user.userId,
+              permissions: {
+                view: user.permissions.includes('view'),
+                edit: user.permissions.includes('edit'),
+                delete: user.permissions.includes('delete')
+              }
+            }); // Add new user with permissions
           }
         });
         await sharedItem.save();
@@ -42,7 +53,11 @@ exports.shareItem = async (req, res) => {
           itemId: singleItemId,
           sharedWith: users.map(user => ({
             userId: user.userId,
-            permissions: user.permissions
+            permissions: {
+              view: user.permissions.includes('view'),
+              edit: user.permissions.includes('edit'),
+              delete: user.permissions.includes('delete')
+            }
           }))
         });
         await sharedItem.save();

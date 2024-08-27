@@ -1,4 +1,4 @@
-const Tag = require('../model/passwordtag');
+const Tag = require('../model/tag');
 
 // Create a new tag
 exports.createTag = async (req, res) => {

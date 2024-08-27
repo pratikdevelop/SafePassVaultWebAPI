@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const passwordTagSchema  = new mongoose.Schema({
+const tagSchema  = new mongoose.Schema({
   name: {
     type: String,
     required: true,
@@ -17,5 +17,5 @@ const passwordTagSchema  = new mongoose.Schema({
   },
 });
 
-const PasswordTag = mongoose.model('PasswordTag', passwordTagSchema );
-module.exports = PasswordTag;
+const tag = mongoose.model('tag', tagSchema );
+module.exports = tag;
