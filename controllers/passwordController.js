@@ -4,6 +4,8 @@ const jwt = require('jsonwebtoken');
 const CryptoJS = require('crypto-js');
 const mongoose = require('mongoose');
 const SharedItem = require('../model/shareItem'); // Assuming this is your SharedItem model
+const { parse } = require('json2csv');
+
 
 // Get all passwords with pagination, sorting, and searching
 exports.getAllPasswords = async (req, res) => {
@@ -36,8 +38,8 @@ exports.getAllPasswords = async (req, res) => {
     const sharedItems = await SharedItem.find({ 
       itemType: 'password', 
       'sharedWith.userId': userId 
-    });
-
+    }).populate('itemId');
+    
     const sharedPasswordIds = sharedItems.map(item => item.itemId);
 
     const sharedPasswords = await Password.find({ 
@@ -45,7 +47,9 @@ exports.getAllPasswords = async (req, res) => {
       ...searchQuery 
     })
     .populate('tags')
-    .sort(sortOption);
+    .sort(sortOption).merge(sharedItems);
+    console.log('dd', sharedPasswords);
+    
 
     // Combine created and shared passwords
     const allPasswords = [...createdPasswords, ...sharedPasswords];
@@ -97,8 +101,7 @@ exports.createPassword = async (req, res) => {
 exports.deletePasswords = async (req, res) => {
   try {
     const ids = req.params.ids.split(',');
-    const objectIds = ids.map(id => new mongoose.Types.ObjectId(id));
-    const deletedCount = await Password.deleteMany({ _id: { $in: objectIds } });
+    const deletedCount = await Password.deleteMany({ _id: { $in: ids } });
 
     if (deletedCount.deletedCount === 0) {
       res.status(404).json({ message: "No passwords found or deleted" });
@@ -197,3 +200,21 @@ exports.toggleFavorite = async (req, res) => {
     res.status(500).json({ message: 'Error updating favorites' });
   }
 };
+
+exports.exportAllPasswords = async(req, res) => {
+    try {
+      const exportPasswordsIds = req.params.ids.split(",")
+      const userId = req.user._id;
+      const passwords = await Password.find({created_by: userId,  _id: { $in: exportPasswordsIds },}).populate('tags').lean() // Convert to plain JSON
+      
+      // Convert JSON to CSV
+      const csv = parse(passwords);
+      
+      // Set headers for CSV download
+      res.header('Content-Type', 'text/csv');
+      res.header('Content-Disposition', 'attachment; filename=passwords.csv');
+      res.send(csv);
+    } catch (error) {
+      res.status(500).send(error);
+    }
+}

@@ -23,4 +23,6 @@ router.get('/share/:passwordId/:shareToken', passwordController.getSharedPasswor
 // Add or remove a password from favorites
 router.post('/password/:passwordId/favorite', passwordController.toggleFavorite);
 
+router.get('/export', passwordController.exportAllPasswords);
+
 module.exports = router;

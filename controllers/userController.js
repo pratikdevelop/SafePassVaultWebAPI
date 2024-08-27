@@ -250,9 +250,9 @@ exports.getAllUsers = async(req, res)=>{
  const invitations = await Invitation.find({ sender: userId })
       .populate({
         path: 'recipient',
-        select: 'name email phone'  // Select only name and email from recipient
+        select: 'name email phone'  
       })
-      .select('status organization createdAt') // Select only these fields from Invitation
+      .select('status organization createdAt')
       .exec();
       // Send the invitations as the response
       res.status(200).json(invitations);
@@ -330,12 +330,10 @@ exports.resetPassword = async (req, res) => {
     const resetToken = crypto.randomBytes(32).toString("hex");
     const resetTokenExpiry = Date.now() + 600000; // 10 minutes in milliseconds
 
-    // Update the user with the reset token and expiry
     await User.updateOne(
       { _id: user._id },
       { $set: { resetToken, resetTokenExpiry } }
     );
-    // Create a payload with user ID and token, then encode it
     const payload = `${user._id}:${resetToken}`;
     const encodedToken = Buffer.from(payload).toString('base64');
 
@@ -442,10 +440,7 @@ exports.sendInvitation = async (req, res) => {
     if (!organization) {
       return res.status(404).json({ message: "Organization not found" });
     }
-
-    // Check if the recipient exists, if not create a new user
     const sender = await User.findById(req.user._id);
-    // Create a new user if not found
     const recipient = new User({
       email,
       name,
@@ -454,7 +449,6 @@ exports.sendInvitation = async (req, res) => {
 
     await recipient.save();
 
-    // Create the invitation
     const invitation = new Invitation({
       sender: req.user._id,
       recipient: recipient._id,
@@ -564,13 +558,10 @@ exports.acceptInvitation = async (req, res) => {
     // Hash the password and update the user record
     const hashedPassword = await bcrypt.hash(passowrd, 10);
     const confirmationCode = uuidv4();
-    console.log("in", invitation);
-
     const user = await User.findByIdAndUpdate(invitation.recipient, {
       password: hashedPassword,
       confirmationCode: confirmationCode,
     });
-    console.log("user", user.password);
 
     // Mark the invitation as accepted
     invitation.status = "accepted";
@@ -639,9 +630,9 @@ exports.saveMfaSettings = async (req, res) => {
 };
 
 exports.verifyMfaCode = async (req, res) => {
-  const { userId, mfaCode } = req.body;
+  const { email, mfaCode } = req.body;
   try {
-    const user = await User.findById(userId);
+    const user = await User.findOne({email});
     if (!user) {
       return res.status(404).send({ message: "User not found" });
     }
@@ -656,7 +647,10 @@ exports.verifyMfaCode = async (req, res) => {
     await user.save();
 
     const token = user.generateAuthToken();
-    res.status(200).send({ token });
+    res.status(200).send({ token, 
+      message: "MFA code verified successfully",
+      success: true
+     });
   } catch (error) {
     console.error(error);
     res.status(500).send({ message: "Error verifying MFA code" });
@@ -748,3 +742,4 @@ exports.loginUser = async (req, res) => {
     res.status(400).send({ message: "Invalid email or password" });
   }
 };
+

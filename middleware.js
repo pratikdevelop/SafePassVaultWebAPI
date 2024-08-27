@@ -33,7 +33,7 @@ const auth = (req, res, next) => {
 // Optional function to define public routes (replace with your logic)
 function requiresAuth(url, method) {
 // Consider using a Set for faster lookups, especially with many public routes
-const publicRoutes = ['/login', '/register', '/confirm-email','/resend-code', 'reset-password', 'verify-reset-link', 'change-password', 'plans'];
+const publicRoutes = ['/login', '/register', '/confirm-email','/resend-code', 'reset-password', 'verify-reset-link', 'change-password', 'plans', 'verify-mfa'];
 let isverify= false;
 publicRoutes.forEach((route)=>{
   if(url.includes(route)) {
