@@ -57,33 +57,9 @@ const userSchema = new mongoose.Schema({
   state: String,
   postalCode: String,
   country: String,
-  cardNumber: {
-    type: String,
-    validate: {
-      validator: function(value) {
-        return (this.role === 'admin' || value);
-      },
-      message: 'Card number is required for paid plans.'
-    }
-  },
-  expiryDate: {
-    type: String,
-    validate: {
-      validator: function(value) {
-        return (this.role === 'admin' || value);
-      },
-      message: 'Expiry date is required for paid plans.'
-    }
-  },
-  cvv: {
-    type: String,
-    validate: {
-      validator: function(value) {
-        return (this.role === 'admin' || value);
-      },
-      message: 'CVV is required for paid plans.'
-    }
-  },
+  stripeCustomerId: { type: String },
+  plan: { type: String}, // Reference to Plan
+  numberOfUsers: { type: Number, default: 1 },
   organization: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Organization' }],
   invitation: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Invitation' }],
   createdAt: {
@@ -138,13 +114,6 @@ userSchema.methods.generateAuthToken = function() {
   this.tokens = [{ token }];
   this.save();
   return token;
-};
-
-// Generate confirmation code
-userSchema.methods.generateConfirmationCode = function() {
-  const code = uuidv4();
-  this.confirmationCode = code;
-  return code;
 };
 
 // Find user by credentials

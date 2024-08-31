@@ -25,5 +25,5 @@ router.post('/password/:passwordId/favorite', passwordController.toggleFavorite)
 
 router.get('/export', passwordController.exportAllPasswords);
 router.post('/add-tag',  passwordController.addTag)
-
+router.post('/:passwordId/comments', passwordController.postComment)
 module.exports = router;

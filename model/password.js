@@ -54,8 +54,11 @@ const passwordSchema = new mongoose.Schema({
     type: Date,
     default: Date.now, // Set the default value to the current timestamp
   },
-  tags: [{ type: mongoose.Schema.Types.ObjectId, ref: 'tag' }] // array of tag IDs associated with this password
-
+  tags: [{ type: mongoose.Schema.Types.ObjectId, ref: 'tag' }],
+  comments: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Comment'
+  }]
 });
 
 const Password = mongoose.model('Password', passwordSchema);

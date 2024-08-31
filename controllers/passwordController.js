@@ -6,18 +6,21 @@ const mongoose = require('mongoose');
 const SharedItem = require('../model/shareItem'); // Assuming this is your SharedItem model
 const { parse } = require('json2csv');
 const Tag = require('../model/tag')
+const Comment = require('../model/comment')
 
 
 // Get all passwords with pagination, sorting, and searching
 exports.getAllPasswords = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { page = 1, limit = 10, sort = 'name', order = 'asc', search = '' } = req.query;
+    const { page = 1, limit = 10, sort = 'name', order = 'asc', search } = req.query;
+    console.log('dd', search);
+    
 
     const sortOption = {};
     sortOption[sort] = order === 'asc' ? 1 : -1;
 
-    const searchQuery = search
+    const searchQuery = search !== 'undefined'
       ? {
           $or: [
             { name: { $regex: search, $options: 'i' } },
@@ -28,9 +31,26 @@ exports.getAllPasswords = async (req, res) => {
         }
       : {};
 
-    // Find passwords created by the user
+    console.log('searchW', searchQuery);
+    
+    // Find passwords created by the user and populate 'created_by' and 'modifiedby' fields
     const createdPasswords = await Password.find({ created_by: userId, ...searchQuery })
       .populate('tags')
+      .populate({
+        path: 'comments',
+        populate: {
+          path: 'createdBy',
+          select: 'name', // Populate the 'name' field of the user who created the comment
+        }
+      })
+      .populate({
+        path: 'created_by',
+        select: 'name', // Populate the 'name' field of the user who created the password
+      })
+      .populate({
+        path: 'modifiedby',
+        select: 'name', // Populate the 'name' field of the user who modified the password
+      })
       .sort(sortOption)
       .skip((page - 1) * limit)
       .limit(Number(limit));
@@ -43,11 +63,27 @@ exports.getAllPasswords = async (req, res) => {
 
     const sharedPasswordIds = sharedItems.map(item => item.itemId);
 
+    // Find and populate shared passwords
     const sharedPasswords = await Password.find({ 
       _id: { $in: sharedPasswordIds }, 
       ...searchQuery 
     })
     .populate('tags')
+    .populate({
+      path: 'comments',
+      populate: {
+        path: 'createdBy',
+        select: 'name', // Populate the 'name' field of the user who created the comment
+      }
+    })
+    .populate({
+      path: 'created_by',
+      select: 'name', // Populate the 'name' field of the user who created the password
+    })
+    .populate({
+      path: 'modifiedby',
+      select: 'name', // Populate the 'name' field of the user who modified the password
+    })
     .sort(sortOption);
 
     // Combine created and shared passwords
@@ -64,8 +100,7 @@ exports.getAllPasswords = async (req, res) => {
         ...password.toObject(),
         isFavorite,
         sharedItem: sharedItem ? 
-           sharedItem.sharedWith.find(sw => sw.userId.toString() === userId.toString()): null
-        
+           sharedItem.sharedWith.find(sw => sw.userId.toString() === userId.toString()) : null
       };
     });
 
@@ -85,6 +120,7 @@ exports.getAllPasswords = async (req, res) => {
     res.status(500).json({ message: "Error fetching passwords" });
   }
 };
+
 
 
 
@@ -259,5 +295,34 @@ exports.addTag = async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'An error occurred while adding the tag' });
+  }
+};
+exports.postComment =  async (req, res) => {
+  try {
+      const { passwordId } = req.params;
+      const createdBy = req.user._id;
+      const { content } = req.body;
+
+      // Create a new comment
+      const newComment = new Comment({
+          content,
+          createdBy
+      });
+
+      // Save the comment
+      await newComment.save();
+
+      // Find the password entry and update it with the new comment
+      const password = await Password.findById(passwordId);
+      if (!password) {
+          return res.status(404).json({ message: 'Password not found' });
+      }
+
+      password.comments.push(newComment._id);
+      await password.save();
+
+      res.status(201).json({ message: 'Comment added successfully', comment: newComment });
+  } catch (error) {
+      res.status(500).json({ message: 'Server error', error: error.message });
   }
 };

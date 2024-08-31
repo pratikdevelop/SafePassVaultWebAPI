@@ -7,6 +7,7 @@ const bcrypt = require("bcryptjs");
 const Invitation = require('../model/Invitation')
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
+
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
   port: 587,
@@ -38,13 +39,12 @@ exports.getStripePlans = async (req, res) => {
         interval: price.recurring.interval,
         intervalCount: price.recurring.interval_count,
         features: JSON.parse(product.metadata.features),
-        buttonLink :metadata.buttonLink,
-        buttonText:  metadata.buttonText,
-        hasTrial:metadata.hasTrial,
-        queryParams:metadata.queryParams,
-        trialLink:metadata.trialLink,
-        trialQueryParams:metadata.trialQueryParams,
-
+        buttonLink: metadata.buttonLink,
+        buttonText: metadata.buttonText,
+        hasTrial: metadata.hasTrial,
+        queryParams: metadata.queryParams ? JSON.parse(metadata.queryParams) : {}, // Parsing queryParams
+        trialLink: metadata.trialLink,
+        trialQueryParams: metadata.trialQueryParams ? JSON.parse(metadata.trialQueryParams) : {}, // Parsing trialQueryParams
       };
     });
 
@@ -56,6 +56,7 @@ exports.getStripePlans = async (req, res) => {
     res.status(500).json({ message: 'Unable to fetch plans from Stripe.', error: error.message });
   }
 };
+
 exports.registerUser = async (req, res) => {
   try {
     const {
@@ -69,12 +70,9 @@ exports.registerUser = async (req, res) => {
       state,
       postalCode,
       country,
-      cardNumber,
-      expiryMonth,
-      expiryYear,
-      cvv,
-      planType,
-      numberOfUsers = 1,
+      token, // Stripe token from CardElement
+      planId, // Stripe plan ID for subscription
+      numberOfUsers = 1
     } = req.body;
 
     // Validate billing info for paid plans
@@ -85,58 +83,52 @@ exports.registerUser = async (req, res) => {
         !state ||
         !postalCode ||
         !country ||
-        !cardNumber ||
-        !expiryYear ||
-        !expiryMonth ||
-        !cvv)
+        !token ||
+        !planId)
     ) {
       return res.status(400).send({
         message: "Billing and payment information is required for paid plans.",
       });
     }
 
-    // Validate plan type
-    const PLAN_PRICING = {
-      free: 0,
-      basic: 5,
-      premium: 10,
-      teams: 4, // per user
-      enterprise: 6, // per user
-    };
+    // Find the plan details
+    // const plan = await Plan.findOne({ planId });
 
-    if (!PLAN_PRICING.hasOwnProperty(planType)) {
-      return res.status(400).send({ message: "Invalid plan type." });
-    }
+    // if (!plan) {
+    //   return res.status(400).send({ message: "Invalid plan ID." });
+    // }
 
-    // Calculate amount based on plan type and number of users
-    const baseAmount = PLAN_PRICING[planType];
-    const totalAmount =
-      planType === "teams" || planType === "enterprise"
-        ? baseAmount * numberOfUsers
-        : baseAmount;
-
-    // Handle Stripe payment
-    const customer = await stripe.customers.create({
-      email,
-      source: {
-        object: 'card',
-        number: cardNumber,
-        exp_month: parseInt(expiryMonth, 10),
-        exp_year: parseInt(expiryYear, 10),
-        cvc: cvv,
+    // Create a payment method
+    const paymentMethod = await stripe.paymentMethods.create({
+      type: 'card',
+      card: { 
+        token: token 
       },
     });
 
-    // Create a payment intent
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: totalAmount * 100, // Convert dollars to cents
-      currency: 'usd',
-      customer: customer.id,
-      payment_method: customer.default_source,
-      confirm: true,
+    // Create a customer
+    const customer = await stripe.customers.create({
+      email,
+      payment_method: paymentMethod.id,
+      invoice_settings: {
+        default_payment_method: paymentMethod.id,
+      },
     });
 
-    // Handle payment confirmation
+    // Create a subscription
+    const subscription = await stripe.subscriptions.create({
+      customer: customer.id,
+      items: [
+        {
+          price: planId, // The Stripe price ID for the subscription plan
+        },
+      ],
+      expand: ['latest_invoice.payment_intent'],
+    });
+
+    // Handle subscription confirmation
+    const paymentIntent = subscription.latest_invoice.payment_intent;
+
     if (paymentIntent.status !== 'succeeded') {
       return res
         .status(400)
@@ -156,11 +148,12 @@ exports.registerUser = async (req, res) => {
       postalCode,
       country,
       stripeCustomerId: customer.id,
-      planType,
+      plan: planId, // Reference to the Plan document
       numberOfUsers,
+      subscriptionId: subscription.id, // Save Stripe subscription ID
     });
 
-    const confirmationCode = generateConfirmationCode(); // Implement this function to generate a unique code
+    const confirmationCode = crypto.randomInt(100000, 999999).toString();
     user.confirmationCode = confirmationCode;
 
     const organization = new Organization({
@@ -201,6 +194,8 @@ exports.registerUser = async (req, res) => {
     res.status(400).send({ message: `Error creating user: ${error.message}` });
   }
 };
+
+
 
 // Confirm email endpoint
 exports.confirmEmail = async (req, res) => {
