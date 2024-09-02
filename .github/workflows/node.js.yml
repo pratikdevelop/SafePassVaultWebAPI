@@ -40,10 +40,12 @@ jobs:
         echo "TWILIO_AUTH_TOKEN=${{ secrets.TWILIO_AUTH_TOKEN }}" >> .env
         echo "STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}" >> .env
 
-    - name: Build and Start Application
+    - name: Install PM2 globally
+      run: npm install -g pm2
+
+    - name: Build and Start Application with PM2
       run: |
-        npm install 
-        node index.js
+        pm2 start index.js --name "my-app" --env production
 
     - name: Deploy to Render
       env:
