@@ -42,8 +42,8 @@ jobs:
 
     - name: Build and Start Application
       run: |
-        npm run build
-        pm2 start index.js --name "my-node-app"
+        npm install 
+        node index.js
 
     - name: Deploy to Render
       env:
