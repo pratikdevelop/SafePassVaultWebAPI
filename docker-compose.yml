@@ -1,0 +1,36 @@
+services:
+  mongo:
+    image: mongo:latest
+    container_name: mean_mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: pratikraut88895@gmail.com
+      MONGO_INITDB_ROOT_PASSWORD: mongourl@1234556
+    networks:
+      - mean-network
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile  # Adjust if necessary
+    container_name: mean_backend
+    ports:
+      - "3000:3000"
+    environment:
+      MONGO_DB_USERNAME: passwordmanagerapp
+      MONGO_DB_PASSWORD: HTkrDeHfL1evR5JQ
+      MONGO_DB: password-manager
+      MONGO_URI: "mongodb://pratikraut88895@gmail.com:mongourl@1234556@mongo:27017/password-manager?authSource=admin"
+    depends_on:
+      - mongo
+    networks:
+      - mean-network
+
+volumes:
+  mongo-data:
+
+networks:
+  mean-network:
