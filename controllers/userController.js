@@ -257,6 +257,15 @@ exports.getAllUsers = async(req, res)=>{
     }
 }
 
+const getStripePlanDetails = async (planId) => {
+  try {
+    const plan = await stripe.plans.retrieve(planId);
+    return plan;
+  } catch (error) {
+    console.error('Error fetching Stripe plan details:', error);
+    throw error;
+  }
+};
 
 // Get user profile
 exports.getProfile = async (req, res) => {
@@ -265,7 +274,21 @@ exports.getProfile = async (req, res) => {
     if (!user) {
       return res.status(404).send({ message: "User not found" });
     }
-    res.status(200).send(user);
+    let planDetails = null;
+    if (user.plan) {
+      try {
+        planDetails = await getStripePlanDetails(user.plan);
+      } catch (error) {
+        console.error('Error fetching Stripe plan details:', error);
+        return res.status(500).send({ message: "Error fetching plan details" });
+      }
+    }
+    console.log(planDetails);
+    
+    res.status(200).json({
+      user,
+      planDetails, // Include plan details in the response
+    });
   } catch (error) {
     console.error(error);
     res.status(500).send({ message: "Error getting user profile", error });
