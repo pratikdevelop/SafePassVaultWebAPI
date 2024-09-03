@@ -15,7 +15,7 @@ services:
   backend:
     build:
       context: .
-      dockerfile: Dockerfile  # Adjust if necessary
+      dockerfile: Dockerfile 
     container_name: mean_backend
     ports:
       - "3000:3000"

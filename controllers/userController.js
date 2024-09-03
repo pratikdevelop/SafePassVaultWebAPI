@@ -211,6 +211,7 @@ exports.confirmEmail = async (req, res) => {
       return res.status(400).send({ message: "Invalid confirmation code" });
     }
     user.emailConfirmed = true;
+    user.confirmationCode = null;
     const secret = user.generateTotpSecret(); // Generate TOTP secret
     const token = user.generateAuthToken();
     res.status(200).send({ message: "Email confirmed successfully", token });
@@ -260,7 +261,8 @@ exports.getAllUsers = async(req, res)=>{
 const getStripePlanDetails = async (planId) => {
   try {
     const plan = await stripe.plans.retrieve(planId);
-    return plan;
+    const product = await stripe.products.retrieve(plan.product) 
+    return {plan, product};
   } catch (error) {
     console.error('Error fetching Stripe plan details:', error);
     throw error;
@@ -463,6 +465,7 @@ exports.sendInvitation = async (req, res) => {
       email,
       name,
       phone,
+      role: 'user'
     });
 
     await recipient.save();
@@ -504,6 +507,65 @@ exports.sendInvitation = async (req, res) => {
     res.status(500).json({ message: "Error sending invitation" });
   }
 };
+
+
+exports.resendInvitation = async (req, res) => {
+  const organizationId = req.params.organizationId;
+  const recipientId = req.params.recipientId
+
+  try {
+    // Find the organization
+    const organization = await Organization.findById(organizationId);
+    if (!organization) {
+      return res.status(404).json({ message: "Organization not found" });
+    }
+
+    // Find the existing invitation
+    const invitation = await Invitation.findOne({
+      organization: organization._id,
+      recipient: recipientId
+    });
+
+    if (!invitation) {
+      return res.status(404).json({ message: "Invitation not found" });
+    }
+
+    // Find the sender and recipient details
+    const sender = await User.findById(invitation.sender);
+    const recipient = await User.findById(recipientId);
+
+    if (!sender || !recipient) {
+      return res.status(404).json({ message: "Sender or recipient not found" });
+    }
+
+    // Resend the invitation email
+    const mailOptions = {
+      from: "passwordmanagementapp@gmail.com",
+      to: recipient.email,
+      subject: "Invitation to Join Organization",
+      html: `<b>Hi ${recipient.name}</b>,
+             <p>You have been invited to join the organization '${organization.name}' by ${sender.name}.</p>
+             <p>Please click the following link to accept the invitation:</p>
+             <a href="https://passwordmanagementrouter.netlify.app/auth/accept-invitation?id=${invitation._id}">Accept Invitation</a>
+             <p>Thanks,<br>Password Management APP</p>`,
+    };
+
+    transporter.sendMail(mailOptions, (error, info) => {
+      if (error) {
+        console.error("Error sending invitation email:", error);
+        return res
+          .status(500)
+          .json({ message: "Error sending invitation email" });
+      } else {
+        res.status(200).json({ message: "Invitation resent successfully" });
+      }
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Error resending invitation" });
+  }
+};
+
 
 exports.logout = async (req, res) => {
   const userId = req.user._id; // Extract user ID from the decoded token
@@ -685,7 +747,7 @@ exports.loginUser = async (req, res) => {
     }
 
     if (user.mfaEnabled) {
-      const mfaCode = uuidv4();
+      const mfaCode = crypto.randomInt(100000, 999999).toString();
       user.mfaCode = mfaCode; // Store MFA code temporarily
       user.mfaCodeExpiry = Date.now() + 300000; // MFA code expires in 5 minutes
       await user.save();

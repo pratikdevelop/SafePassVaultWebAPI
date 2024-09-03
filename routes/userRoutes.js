@@ -20,4 +20,5 @@ router.get('/users', userController.getAllUsers)
 router.post('/mfa-settings', userController.saveMfaSettings)
 router.get('/plans', userController.getStripePlans)
 router.post('/verify-mfa', userController.verifyMfaCode)
+router.post('/resend-invitation/:organizationId/:recipientId', userController.resendInvitation)
 module.exports = router;

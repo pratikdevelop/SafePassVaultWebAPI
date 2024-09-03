@@ -11,7 +11,10 @@ const Comment = require('../model/comment')
 
 // Get all passwords with pagination, sorting, and searching
 exports.getAllPasswords = async (req, res) => {
+
   try {
+    console.log('pp', req);
+    
     const userId = req.user._id;
     const { page = 1, limit = 10, sort = 'name', order = 'asc', search } = req.query;
     console.log('dd', search);
@@ -246,11 +249,9 @@ exports.toggleFavorite = async (req, res) => {
 
 exports.exportAllPasswords = async(req, res) => {
     try {
-      const exportPasswordsIds = req.params.ids.split(",")
+      const exportPasswordsIds = req.query.ids.split(",")
       const userId = req.user._id;
       const passwords = await Password.find({created_by: userId,  _id: { $in: exportPasswordsIds },}).populate('tags').lean() // Convert to plain JSON
-      
-      // Convert JSON to CSV
       const csv = parse(passwords);
       
       // Set headers for CSV download
@@ -258,6 +259,7 @@ exports.exportAllPasswords = async(req, res) => {
       res.header('Content-Disposition', 'attachment; filename=passwords.csv');
       res.send(csv);
     } catch (error) {
+      console.error(error);
       res.status(500).send(error);
     }
 }
