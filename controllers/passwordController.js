@@ -13,16 +13,10 @@ const Comment = require('../model/comment')
 exports.getAllPasswords = async (req, res) => {
 
   try {
-    console.log('pp', req);
-    
     const userId = req.user._id;
     const { page = 1, limit = 10, sort = 'name', order = 'asc', search } = req.query;
-    console.log('dd', search);
-    
-
     const sortOption = {};
     sortOption[sort] = order === 'asc' ? 1 : -1;
-
     const searchQuery = search !== 'undefined'
       ? {
           $or: [
@@ -34,8 +28,6 @@ exports.getAllPasswords = async (req, res) => {
         }
       : {};
 
-    console.log('searchW', searchQuery);
-    
     // Find passwords created by the user and populate 'created_by' and 'modifiedby' fields
     const createdPasswords = await Password.find({ created_by: userId, ...searchQuery })
       .populate('tags')
