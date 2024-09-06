@@ -443,7 +443,10 @@ exports.getOrganizations = async (req, res) => {
     const organizations = await Organization.find({
       owner: req.user._id,
     })
-      .populate("owner")
+      .populate({
+        path:"owner",
+        select: "name email"
+      })
       .exec();
     res.json(organizations);
   } catch (err) {
@@ -451,16 +454,21 @@ exports.getOrganizations = async (req, res) => {
     res.status(500).json({ message: "Error fetching organizations" });
   }
 };
-
 exports.sendInvitation = async (req, res) => {
   const organizationId = req.params.organizationId;
   const { email, phone, name } = req.body;
+
   try {
+    // Find the organization by ID
     const organization = await Organization.findById(organizationId);
     if (!organization) {
       return res.status(404).json({ message: "Organization not found" });
     }
+
+    // Find the sender (current logged-in user)
     const sender = await User.findById(req.user._id);
+
+    // Create a new recipient user with the provided email, name, and phone
     const recipient = new User({
       email,
       name,
@@ -468,18 +476,27 @@ exports.sendInvitation = async (req, res) => {
       role: 'user'
     });
 
+    // Save the recipient user to the database
     await recipient.save();
 
+    // Add the recipient to the organization's members array
+    organization.members.push(recipient._id);
+    await organization.save(); // Save the updated organization
+
+    // Create a new invitation with the sender and recipient details
     const invitation = new Invitation({
       sender: req.user._id,
       recipient: recipient._id,
       organization: organization._id,
     });
 
+    // Save the invitation to the database
     await invitation.save();
 
+    // Add the invitation ID to the sender's invitation list
     sender.invitation.push(invitation._id);
     await sender.save();
+
     // Send email invitation
     const mailOptions = {
       from: "passwordmanagementapp@gmail.com",
@@ -492,6 +509,7 @@ exports.sendInvitation = async (req, res) => {
              <p>Thanks,<br>Password Management APP</p>`,
     };
 
+    // Send the email using the configured transporter
     transporter.sendMail(mailOptions, (error, info) => {
       if (error) {
         console.error("Error sending invitation email:", error);
@@ -502,11 +520,13 @@ exports.sendInvitation = async (req, res) => {
         res.status(200).json({ message: "Invitation sent successfully" });
       }
     });
+
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Error sending invitation" });
   }
 };
+
 
 
 exports.resendInvitation = async (req, res) => {
