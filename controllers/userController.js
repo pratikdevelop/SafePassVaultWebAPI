@@ -26,11 +26,8 @@ exports.getStripePlans = async (req, res) => {
   try {
     const products = await stripe.products.list();
     const prices = await stripe.prices.list();
-    
     const plans = prices.data.map(price => {
       const product = products.data.find(p => p.id === price.product);
-      const metadata = product.metadata;
-
       return {
         id: price.id,
         title: product.name,
@@ -38,13 +35,13 @@ exports.getStripePlans = async (req, res) => {
         currency: price.currency,
         interval: price.recurring.interval,
         intervalCount: price.recurring.interval_count,
-        features: JSON.parse(product.metadata.features),
-        buttonLink: metadata.buttonLink,
-        buttonText: metadata.buttonText,
-        hasTrial: metadata.hasTrial,
-        queryParams: metadata.queryParams ? JSON.parse(metadata.queryParams) : {}, // Parsing queryParams
-        trialLink: metadata.trialLink,
-        trialQueryParams: metadata.trialQueryParams ? JSON.parse(metadata.trialQueryParams) : {}, // Parsing trialQueryParams
+        features: product.metadata?.features ? JSON.parse(product.metadata?.features): {},
+        buttonLink: price.metadata.buttonLink,
+        buttonText: price.metadata.buttonText,
+        hasTrial: price.metadata.hasTrial,
+        queryParams: price.metadata.queryParams ? JSON.parse(price.metadata.queryParams) : {}, // Parsing queryParams
+        trialLink: price.metadata.trialLink,
+        trialQueryParams: price.metadata.trialQueryParams ? JSON.parse(price.metadata.trialQueryParams) : {}, // Parsing trialQueryParams
       };
     });
 
@@ -56,7 +53,6 @@ exports.getStripePlans = async (req, res) => {
     res.status(500).json({ message: 'Unable to fetch plans from Stripe.', error: error.message });
   }
 };
-
 exports.registerUser = async (req, res) => {
   try {
     const {
@@ -91,13 +87,6 @@ exports.registerUser = async (req, res) => {
       });
     }
 
-    // Find the plan details
-    // const plan = await Plan.findOne({ planId });
-
-    // if (!plan) {
-    //   return res.status(400).send({ message: "Invalid plan ID." });
-    // }
-
     // Create a payment method
     const paymentMethod = await stripe.paymentMethods.create({
       type: 'card',
@@ -126,16 +115,24 @@ exports.registerUser = async (req, res) => {
       expand: ['latest_invoice.payment_intent'],
     });
 
-    // Handle subscription confirmation
     const paymentIntent = subscription.latest_invoice.payment_intent;
 
+    if (paymentIntent.status === 'requires_action' || paymentIntent.status === 'requires_payment_method') {
+      return res.status(400).send({
+        requiresAction: true,
+        clientSecret: paymentIntent.client_secret,
+        message: "Further authentication required to complete payment.",
+      });
+    }
+
     if (paymentIntent.status !== 'succeeded') {
+      console.log('paymentIntent', paymentIntent);
       return res
         .status(400)
         .send({ message: "Payment failed, please try again." });
     }
 
-    // Create the user and organization
+    // Create the user and organization if the payment was successful
     const user = new User({
       email,
       password,
@@ -194,8 +191,6 @@ exports.registerUser = async (req, res) => {
     res.status(400).send({ message: `Error creating user: ${error.message}` });
   }
 };
-
-
 
 // Confirm email endpoint
 exports.confirmEmail = async (req, res) => {

@@ -4,10 +4,13 @@ const Card = require('../model/card'); // Assuming the schema file is named card
 exports.createCard = async (req, res) => {
   try {
     req.body.userId = req.user._id;
+    req.body.expiryDate = new Date()
     const newCard = new Card(req.body);
     await newCard.save();
     res.status(201).send(newCard);
   } catch (error) {
+    console.error('rr', error);
+    
     res.status(400).send(error);
   }
 };
@@ -15,7 +18,7 @@ exports.createCard = async (req, res) => {
 // Get all cards
 exports.getAllCards = async (req, res) => {
   try {
-    const cards = await Card.find({});
+    const cards = await Card.find({userId: req.user._id});
     res.send(cards);
   } catch (error) {
     res.status(500).send(error);
