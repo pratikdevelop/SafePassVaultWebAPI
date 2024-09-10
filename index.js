@@ -21,7 +21,7 @@ const swaggerSpec = require('./swagger');
 app.use(cors());
 app.use(express.json());
 app.use(auth);
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.use('/api/swagger', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use("/api/auth", users);
 app.use("/api/passwords", password);
 app.use("/api/tags", tagRoutes);
