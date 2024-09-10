@@ -58,13 +58,30 @@ const userSchema = new mongoose.Schema({
   postalCode: String,
   country: String,
   stripeCustomerId: { type: String },
-  plan: { type: String}, // Reference to Plan
+  plan: { type: String},
+  subscriptionStatus: { type: String},
+  subscriptionExpiry: { type: Date},
+  subscriptionStart: { type: Date},
+  subscriptionEnd: { type: Date},
+  subscriptionId: {
+    type: String
+  },
   numberOfUsers: { type: Number, default: 1 },
   organization: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Organization' }],
   invitation: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Invitation' }],
   createdAt: {
     type: Date,
     default: Date.now,
+  },
+  trialEndDate: {
+    type: Date,
+
+  },
+  planToken:{
+    type:String
+  },
+  planAction:{
+    type:String
   },
   updatedAt: {
     type: Date,
@@ -86,11 +103,9 @@ const userSchema = new mongoose.Schema({
     type: String,
   },
 
-  // Passphrase Field
   passphrase: {
     type: String,
-    // Optional: Add validation rules based on your requirements
-    minlength: 6, // Example: minimum length
+    minlength: 6
   },
 });
 

@@ -14,19 +14,24 @@ const cardControlller = require('./routes/cardRoutes')
 const securityQuestionRoutes = require('./routes/securityQuestionRoutes')
 const fileRoutes = require('./routes//fileRoutes')
 const shareItemRoutes = require('./routes/shareItemRoutes')
+const planRoutes = require('./routes/plan-routes')
 const auth = require("./middleware")
+const swaggerUi = require('swagger-ui-express');
+const swaggerSpec = require('./swagger');
 app.use(cors());
 app.use(express.json());
 app.use(auth);
-app.use("/api/auth", users)
-app.use("/api/passwords", password)
-app.use("/api/tags", tagRoutes)
-app.use("/api/notes",noteController)
-app.use("/api/proofIds",proofIdsController)
-app.use("/api/cards",cardControlller)
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.use("/api/auth", users);
+app.use("/api/passwords", password);
+app.use("/api/tags", tagRoutes);
+app.use("/api/notes",noteController);
+app.use("/api/proofIds",proofIdsController);
+app.use("/api/cards",cardControlller);
 app.use('/api/security-questions', securityQuestionRoutes);
-app.use('/api/files', fileRoutes)
-app.use('/api/share', shareItemRoutes )
+app.use('/api/files', fileRoutes);
+app.use('/api/share', shareItemRoutes);
+app.use('/api/plans',planRoutes);
 
 app.get("/", (req, res) => {
   res.send("Hello World");

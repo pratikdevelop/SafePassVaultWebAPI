@@ -1,22 +1,23 @@
+version: '3.3'
 services:
   mongo:
     image: mongo:latest
-    container_name: mean_mongo
+    container_name: mongo
     ports:
       - "27017:27017"
     volumes:
-      - mongo-data:/data/db
+      - mongo:/data/db
     environment:
       MONGO_INITDB_ROOT_USERNAME: pratikraut88895@gmail.com
       MONGO_INITDB_ROOT_PASSWORD: mongourl@1234556
     networks:
-      - mean-network
+      - api
 
   backend:
     build:
       context: .
       dockerfile: Dockerfile 
-    container_name: mean_backend
+    container_name: backend
     ports:
       - "3000:3000"
     environment:
@@ -27,10 +28,10 @@ services:
     depends_on:
       - mongo
     networks:
-      - mean-network
+      - api
 
 volumes:
-  mongo-data:
+  mongo:
 
 networks:
-  mean-network:
+  api:

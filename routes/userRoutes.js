@@ -1,8 +1,17 @@
 const express = require('express');
 const router = express.Router();
 const userController = require('../controllers/userController');
-
-router.post('/register', userController.registerUser);
+/**
+ * @swagger
+ * /users:
+ *   get:
+ *     summary: Get a list of users
+ *     description: Retrieve a list of users from the database.
+ *     responses:
+ *       200:
+ *         description: Successful response with a list of users.
+ */
+router.post('/register', userController.createUser);
 router.post('/confirm-email', userController.confirmEmail);
 router.post('/login', userController.loginUser);
 router.post('/logout', userController.logout);
@@ -18,7 +27,7 @@ router.post('/organizations/:organizationId/invitations', userController.sendInv
 router.post('/accept-invitation', userController.acceptInvitation)
 router.get('/users', userController.getAllUsers)
 router.post('/mfa-settings', userController.saveMfaSettings)
-router.get('/plans', userController.getStripePlans)
 router.post('/verify-mfa', userController.verifyMfaCode)
 router.post('/resend-invitation/:organizationId/:recipientId', userController.resendInvitation)
+router.get('/resend-code/:email', userController.resendConfirmationCode)
 module.exports = router;

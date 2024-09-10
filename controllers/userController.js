@@ -5,9 +5,7 @@ const crypto = require("crypto");
 const { v4: uuidv4 } = require("uuid");
 const bcrypt = require("bcryptjs");
 const Invitation = require('../model/Invitation')
-const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
-
-
+const planController = require('./plan-controller')
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
   port: 587,
@@ -22,38 +20,9 @@ const twilioClient = twilio(
   process.env.TWILIO_ACCOUNT_SID,
   process.env.TWILIO_AUTH_TOKEN
 );
-exports.getStripePlans = async (req, res) => {
-  try {
-    const products = await stripe.products.list();
-    const prices = await stripe.prices.list();
-    const plans = prices.data.map(price => {
-      const product = products.data.find(p => p.id === price.product);
-      return {
-        id: price.id,
-        title: product.name,
-        amount: price.unit_amount / 100, // Convert cents to dollars
-        currency: price.currency,
-        interval: price.recurring.interval,
-        intervalCount: price.recurring.interval_count,
-        features: product.metadata?.features ? JSON.parse(product.metadata?.features): {},
-        buttonLink: price.metadata.buttonLink,
-        buttonText: price.metadata.buttonText,
-        hasTrial: price.metadata.hasTrial,
-        queryParams: price.metadata.queryParams ? JSON.parse(price.metadata.queryParams) : {}, // Parsing queryParams
-        trialLink: price.metadata.trialLink,
-        trialQueryParams: price.metadata.trialQueryParams ? JSON.parse(price.metadata.trialQueryParams) : {}, // Parsing trialQueryParams
-      };
-    });
 
-    // Send the formatted plan data as a JSON response
-    res.status(200).json({ plans });
-  } catch (error) {
-    console.error('Error fetching plans from Stripe:', error);
-    // Send an error response with a status code and message
-    res.status(500).json({ message: 'Unable to fetch plans from Stripe.', error: error.message });
-  }
-};
-exports.registerUser = async (req, res) => {
+
+exports.createUser = async (req, res) => {
   try {
     const {
       email,
@@ -66,74 +35,19 @@ exports.registerUser = async (req, res) => {
       state,
       postalCode,
       country,
-      token, // Stripe token from CardElement
-      planId, // Stripe plan ID for subscription
-      numberOfUsers = 1
+      numberOfUsers,
+      planId, 
+      token,
+      plan_action,
+      subscriptionId,
+      customerId,
     } = req.body;
 
-    // Validate billing info for paid plans
-    if (
-      role &&
-      (!billingAddress ||
-        !city ||
-        !state ||
-        !postalCode ||
-        !country ||
-        !token ||
-        !planId)
-    ) {
-      return res.status(400).send({
-        message: "Billing and payment information is required for paid plans.",
-      });
-    }
+    // Validate user information
+    // ...
 
-    // Create a payment method
-    const paymentMethod = await stripe.paymentMethods.create({
-      type: 'card',
-      card: { 
-        token: token 
-      },
-    });
-
-    // Create a customer
-    const customer = await stripe.customers.create({
-      email,
-      payment_method: paymentMethod.id,
-      invoice_settings: {
-        default_payment_method: paymentMethod.id,
-      },
-    });
-
-    // Create a subscription
-    const subscription = await stripe.subscriptions.create({
-      customer: customer.id,
-      items: [
-        {
-          price: planId, // The Stripe price ID for the subscription plan
-        },
-      ],
-      expand: ['latest_invoice.payment_intent'],
-    });
-
-    const paymentIntent = subscription.latest_invoice.payment_intent;
-
-    if (paymentIntent.status === 'requires_action' || paymentIntent.status === 'requires_payment_method') {
-      return res.status(400).send({
-        requiresAction: true,
-        clientSecret: paymentIntent.client_secret,
-        message: "Further authentication required to complete payment.",
-      });
-    }
-
-    if (paymentIntent.status !== 'succeeded') {
-      console.log('paymentIntent', paymentIntent);
-      return res
-        .status(400)
-        .send({ message: "Payment failed, please try again." });
-    }
-
-    // Create the user and organization if the payment was successful
-    const user = new User({
+    // Create the trial user and organization
+    const trialUser = new User({
       email,
       password,
       name,
@@ -144,23 +58,28 @@ exports.registerUser = async (req, res) => {
       state,
       postalCode,
       country,
-      stripeCustomerId: customer.id,
-      plan: planId, // Reference to the Plan document
       numberOfUsers,
-      subscriptionId: subscription.id, // Save Stripe subscription ID
+      trial: plan_action === 'trial', // Add a trial flag to the user document
+      plan: planId,
+      planToken: token,
+      planAction: plan_action,
+      stripeCustomerId: customerId,
+      subscriptionId: subscriptionId, // Save Stripe subscription ID
     });
-
-    const confirmationCode = crypto.randomInt(100000, 999999).toString();
-    user.confirmationCode = confirmationCode;
 
     const organization = new Organization({
       name: `${name}'s Organization`,
-      owner: user._id,
+      owner: trialUser._id,
     });
 
-    user.organization = organization._id;
+    trialUser.organization = organization._id;
 
-    // Send confirmation email
+    // Set a trial period (e.g., 30 days)
+    if (plan_action === 'trial') {
+      trialUser.trialEndDate = Date.now() + 30 * 24 * 60 * 60 * 1000;
+    }
+    const confirmationCode = crypto.randomInt(100000, 999999).toString();
+    trialUser.confirmationCode = confirmationCode;
     const mailOptions = {
       from: 'passwordmanagementapp@gmail.com',
       to: email,
@@ -179,19 +98,19 @@ exports.registerUser = async (req, res) => {
           .status(500)
           .send({ message: "Error occurred while sending email" });
       } else {
-        await user.save();
+        await trialUser.save();
         await organization.save();
         res.status(201).send({
-          message: `User created successfully. Verification code sent to ${email}`,
+          message: `user created successfully. Welcome email sent to ${email}`,
         });
       }
     });
+    
   } catch (error) {
-    console.error('Error creating user:', error);
-    res.status(400).send({ message: `Error creating user: ${error.message}` });
+    console.error('Error creating trial user:', error);
+    res.status(400).send({ message: `Error creating trial user: ${error.message}` });
   }
 };
-
 // Confirm email endpoint
 exports.confirmEmail = async (req, res) => {
   const { email, confirmationCode } = req.body;
@@ -200,8 +119,6 @@ exports.confirmEmail = async (req, res) => {
     if (!user) {
       return res.status(400).send({ message: "Invalid email" });
     }
-    console.log("cc", user);
-
     if (user.confirmationCode !== confirmationCode) {
       return res.status(400).send({ message: "Invalid confirmation code" });
     }
@@ -252,17 +169,7 @@ exports.getAllUsers = async(req, res)=>{
       res.status(500).json({ message: 'Error retrieving invitations' });
     }
 }
-
-const getStripePlanDetails = async (planId) => {
-  try {
-    const plan = await stripe.plans.retrieve(planId);
-    const product = await stripe.products.retrieve(plan.product) 
-    return {plan, product};
-  } catch (error) {
-    console.error('Error fetching Stripe plan details:', error);
-    throw error;
-  }
-};
+ 
 
 // Get user profile
 exports.getProfile = async (req, res) => {
@@ -274,14 +181,12 @@ exports.getProfile = async (req, res) => {
     let planDetails = null;
     if (user.plan) {
       try {
-        planDetails = await getStripePlanDetails(user.plan);
+        planDetails = await planController.getStripePlanDetails(user.plan);
       } catch (error) {
         console.error('Error fetching Stripe plan details:', error);
         return res.status(500).send({ message: "Error fetching plan details" });
       }
     }
-    console.log(planDetails);
-    
     res.status(200).json({
       user,
       planDetails, // Include plan details in the response
@@ -757,9 +662,6 @@ exports.loginUser = async (req, res) => {
   try {
     const user = await User.findByCredentials(username, password);
 
-    if (!user.emailConfirmed) {
-      return res.status(400).send({ message: "Email not confirmed" });
-    }
 
     if (user.mfaEnabled) {
       const mfaCode = crypto.randomInt(100000, 999999).toString();
@@ -837,4 +739,42 @@ exports.loginUser = async (req, res) => {
     res.status(400).send({ message: "Invalid email or password" });
   }
 };
+
+exports.resendConfirmationCode = async(req,res)=>{
+  const email = req.params.email;
+  const user = await User.findOne({ email });
+  if (!user) {
+    return res.status(404).send({ message: "User not found" });
+  }
+
+
+  const confirmationCode = crypto.randomInt(100000, 999999).toString();
+  user.confirmationCode = confirmationCode;
+
+    const mailOptions = {
+      from: 'passwordmanagementapp@gmail.com',
+      to: email,
+      subject: 'Verification Code Email',
+      html: `<b>Hi ${user.name}</b>,
+      <p>Your verification code is: ${confirmationCode}</p>
+      <p>Please enter this code to complete your registration.</p>
+      <p>Thanks,</p>
+      <p>Password Management APP</p>`,
+    };
+
+    transporter.sendMail(mailOptions, async (error, info) => {
+      if (error) {
+        console.log('Error occurred while sending email:', error);
+        return res
+          .status(500)
+          .send({ message: "Error occurred while sending email" });
+      } else {
+        await user.save();
+        res.status(201).send({
+          message: `Resend Email Confirmation code send to your mail`,
+        });
+      }
+    });
+
+}
 
