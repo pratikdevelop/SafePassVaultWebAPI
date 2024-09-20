@@ -1,35 +1,41 @@
+const client = require("../paypalClient");
+
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
-exports.getStripePlans = async (req, res) => {
-    try {
-      const products = await stripe.products.list();
-      const prices = await stripe.prices.list();
-      const plans = prices.data.map(price => {
-        const product = products.data.find(p => p.id === price.product);
-        return {
-          id: price.id,
-          title: product.name,
-          amount: price.unit_amount / 100, // Convert cents to dollars
-          currency: price.currency,
-          interval: price.recurring.interval,
-          intervalCount: price.recurring.interval_count,
-          features: product.metadata?.features ? JSON.parse(product.metadata?.features): {},
-          buttonLink: price.metadata.buttonLink,
-          buttonText: price.metadata.buttonText,
-          hasTrial: price.metadata.hasTrial,
-          queryParams: price.metadata.queryParams ? JSON.parse(price.metadata.queryParams) : {}, // Parsing queryParams
-          trialLink: price.metadata.trialLink,
-          trialQueryParams: price.metadata.trialQueryParams ? JSON.parse(price.metadata.trialQueryParams) : {}, // Parsing trialQueryParams
-        };
-      });
-  
-      // Send the formatted plan data as a JSON response
-      res.status(200).json({ plans });
-    } catch (error) {
-      console.error('Error fetching plans from Stripe:', error);
-      // Send an error response with a status code and message
-      res.status(500).json({ message: 'Unable to fetch plans from Stripe.', error: error.message });
-    }
-  };
+  const Plan = require('../model/plan'); // Adjust the path as necessary
+
+exports.getPlans = async (req, res) => {
+  try {
+    // Fetch all plans from the MongoDB database
+    const plans = await Plan.find();
+
+
+    // Format the plans for the response
+    const formattedPlans = plans.map(plan => ({
+      id: plan.paypalPlanId,
+      title: plan.planName,
+      amount: plan.amount / 100, // Convert cents to dollars
+      currency: plan.currency,
+      interval: plan.interval,
+      intervalCount: plan.intervalCount,
+      features: plan.features,
+      buttonLink: plan.buttonLink,
+      buttonText: plan.buttonText,
+      hasTrial: plan.hasTrial,
+      queryParams: plan.queryParams,
+      trialLink: plan.trialLink,
+      trialQueryParams: plan.trialQueryParams,
+    }));
+
+
+    // Send the formatted plan data as a JSON response
+    res.status(200).json({ plans: formattedPlans });
+  } catch (error) {
+    console.error('Error fetching plans from database:', error);
+    // Send an error response with a status code and message
+    res.status(500).json({ message: 'Unable to fetch plans.', error: error.message });
+  }
+};
+
   
 
 exports.createPayment = async (req, res) => {

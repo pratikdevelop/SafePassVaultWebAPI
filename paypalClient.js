@@ -1,17 +1,18 @@
-// paypalClient.js
-const paypal = require('@paypal/checkout-server-sdk');
 
-// Create an environment
-function environment() {
-  return new paypal.core.SandboxEnvironment(
-    process.env.PAYPAL_CLIENT_ID,
-    process.env.PAYPAL_CLIENT_SECRET
-  );
+const Payapl = require('paypal-server-api');
+const paypal = new Payapl({
+  clientId: process.env.PAYPAL_CLIENT_ID, // Your PayPal client ID
+  secret: process.env.PAYPAL_CLIENT_SECRET, // Your PayPal secret
+  log: true, // Log some information to the console
+})
+async function client() {
+
+
+
+return await paypal.authenticate();
 }
+client().then((res)=>{
+  console.log(res);
+})
 
-// Create a PayPal client
-function client() {
-  return new paypal.core.PayPalHttpClient(environment());
-}
-
-module.exports = { client };
+module.exports =  paypal;

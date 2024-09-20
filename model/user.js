@@ -1,10 +1,6 @@
 const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const { v4: uuidv4 } = require('uuid');
-const speakeasy = require('speakeasy'); // For TOTP
-
-
+const subscriptionSchema = require('./subscription');
+// Main User Schema
 const userSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -14,26 +10,28 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: true,
     unique: true,
-    match: /.+\@.+\..+/
-  },
-  password: {
-    type: String,
-  },
-  role: {
-    type: String,
-    default: "admin"
-  },
-  confirmationCode: {
-    type: String,
+    match: /.+\@.+\..+/,
   },
   phone: {
     type: Number,
     required: true,
-    match: /^[0-9]{10}$/
+    match: /^[0-9]{10}$/,
+  },
+  userImage: {
+    type: String, // Stores the path or URL of the uploaded image
+  },
+  password: {
+    type: String,
+  },
+  passphrase: {
+    type: String,
   },
   emailConfirmed: {
     type: Boolean,
     default: false,
+  },
+  confirmationCode: {
+    type: String,
   },
   tokens: [
     {
@@ -49,49 +47,9 @@ const userSchema = new mongoose.Schema({
   resetToken: {
     type: String,
   },
-  userImage:{
-    type: String,
-  },
   resetTokenExpiry: {
     type: Date,
   },
-  billingAddress: String,
-  city: String,
-  state: String,
-  postalCode: String,
-  country: String,
-  stripeCustomerId: { type: String },
-  plan: { type: String},
-  subscriptionStatus: { type: String},
-  subscriptionExpiry: { type: Date},
-  subscriptionStart: { type: Date},
-  subscriptionEnd: { type: Date},
-  subscriptionId: {
-    type: String
-  },
-  numberOfUsers: { type: Number, default: 1 },
-  organization: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Organization' }],
-  invitation: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Invitation' }],
-  createdAt: {
-    type: Date,
-    default: Date.now,
-  },
-  trialEndDate: {
-    type: Date,
-
-  },
-  planToken:{
-    type:String
-  },
-  planAction:{
-    type:String
-  },
-  updatedAt: {
-    type: Date,
-    default: Date.now,
-  },
-  favorites: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Password' }],
-  
   // MFA Fields
   mfaEnabled: {
     type: Boolean,
@@ -105,17 +63,36 @@ const userSchema = new mongoose.Schema({
   totpSecret: {
     type: String,
   },
-
-  passphrase: {
-    type: String,
-    minlength: 6
+  billingAddress: { type: String },
+  city: { type: String },
+  state: { type: String },
+  postalCode: { type: String },
+  organization: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Organization' }],
+  invitation: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Invitation' }],
+  country: { type: String },
+  subscription: subscriptionSchema,  // Embedding subscription info
+  favorites: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Password' }],
+  numberOfUsers: { type: Number, default: 1 },
+  createdAt: {
+    type: Date,
+    default: Date.now,
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now,
   },
 });
 
 // Password hashing middleware
-userSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) {
+userSchema.pre('save', async function (next) {
+  if (!this.isModified('password') && !this.isModified('passphrase')) {
     return next();
+  }
+
+  // Hash password or passphrase if modified
+  if (this.isModified('password')) {
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
   }
 
   if (this.isModified('passphrase')) {
@@ -127,15 +104,15 @@ userSchema.pre('save', async function(next) {
 });
 
 // Generate auth token
-userSchema.methods.generateAuthToken = function() {
-  const token = jwt.sign({ _id: this._id }, process.env.SECRET_KEY);
+userSchema.methods.generateAuthToken = function (_id) {
+  const token = jwt.sign({ _id }, process.env.SECRET_KEY);
   this.tokens = [{ token }];
   this.save();
   return token;
 };
 
 // Find user by credentials
-userSchema.statics.findByCredentials = async function(email, password) {
+userSchema.statics.findByCredentials = async function (email, password) {
   const user = await this.findOne({ email });
   if (!user) {
     throw new Error('Invalid email');
@@ -143,26 +120,18 @@ userSchema.statics.findByCredentials = async function(email, password) {
   const isMatch = await bcrypt.compare(password, user.password);
   if (!isMatch) {
     throw new Error('Invalid password');
-  }
+  } 
   return user;
 };
 
 // Verify reset token
-userSchema.methods.verifyResetToken = async function(token, user) {
-  try {
-    const isMatch = user && (user.resetToken === token);
-    if (!isMatch) {
-      return false;
-    }
-    if (user.resetTokenExpiry && new Date(user.resetTokenExpiry) < new Date()) {
-      return false;
-    }
-    return true;
-  } catch (error) {
-    console.error(error);
-    return false;
-  }
+userSchema.methods.verifyResetToken = function (token, user) {
+  const isMatch = user && user.resetToken === token;
+  const isExpired = user.resetTokenExpiry && new Date(user.resetTokenExpiry) < new Date();
+  return isMatch && !isExpired;
 };
+
+// TOTP Methods
 userSchema.methods.generateTotpSecret = function () {
   const secret = speakeasy.generateSecret();
   this.totpSecret = secret.base32; // Save base32 secret for TOTP verification
@@ -173,7 +142,7 @@ userSchema.methods.verifyTotpCode = function (token) {
   return speakeasy.totp.verify({
     secret: this.totpSecret,
     encoding: 'base32',
-    token
+    token,
   });
 };
 
