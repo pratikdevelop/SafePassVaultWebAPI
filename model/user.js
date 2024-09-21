@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const subscriptionSchema = require('./subscription');
+const bcrypt = require('bcryptjs')
 // Main User Schema
 const userSchema = new mongoose.Schema({
   name: {
@@ -70,9 +71,7 @@ const userSchema = new mongoose.Schema({
   organization: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Organization' }],
   invitation: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Invitation' }],
   country: { type: String },
-  subscription: subscriptionSchema,  // Embedding subscription info
   favorites: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Password' }],
-  numberOfUsers: { type: Number, default: 1 },
   createdAt: {
     type: Date,
     default: Date.now,

@@ -35,18 +35,8 @@ exports.createUser = async (req, res) => {
       state,
       postalCode,
       country,
-      numberOfUsers,
-      planId, 
-      token,
-      plan_action,
-      subscriptionId,
-      customerId,
     } = req.body;
 
-    // Validate user information
-    // ...
-
-    // Create the trial user and organization
     const trialUser = new User({
       email,
       password,
@@ -58,13 +48,6 @@ exports.createUser = async (req, res) => {
       state,
       postalCode,
       country,
-      numberOfUsers,
-      trial: plan_action === 'trial', // Add a trial flag to the user document
-      plan: planId,
-      planToken: token,
-      planAction: plan_action,
-      stripeCustomerId: customerId,
-      subscriptionId: subscriptionId, // Save Stripe subscription ID
     });
 
     const organization = new Organization({
@@ -74,10 +57,10 @@ exports.createUser = async (req, res) => {
 
     trialUser.organization = organization._id;
 
-    // Set a trial period (e.g., 30 days)
-    if (plan_action === 'trial') {
-      trialUser.trialEndDate = Date.now() + 30 * 24 * 60 * 60 * 1000;
-    }
+    // // Set a trial period (e.g., 30 days)
+    // if (plan_action === 'trial') {
+    //   trialUser.trialEndDate = Date.now() + 30 * 24 * 60 * 60 * 1000;
+    // }
     const confirmationCode = crypto.randomInt(100000, 999999).toString();
     trialUser.confirmationCode = confirmationCode;
     const mailOptions = {

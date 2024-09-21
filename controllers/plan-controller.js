@@ -1,4 +1,5 @@
 const client = require("../paypalClient");
+const Subscription = require('../model/subscription')
 
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
   const Plan = require('../model/plan'); // Adjust the path as necessary
@@ -38,57 +39,45 @@ exports.getPlans = async (req, res) => {
 
   
 
-exports.createPayment = async (req, res) => {
-  console.log();
-  
-    try {
-      const { token, planId } = req.body;
-      
-      const parseToken =  JSON.stringify(token) 
-      console.log('rr', parseToken);
-      
-      // Create a payment method
-      const paymentMethod = await stripe.paymentMethods.create({
-        type: 'card',
-        card: { token: parseToken},
+exports.createSubscriptions =  async(req, res) => {
+  const { userId, plan, paypalOrderId } = req.body;
+
+  // Verify the order details and create the subscription
+  const request = new paypal.orders.OrdersGetRequest(paypalOrderId);
+
+  try {
+    const response = await client.execute(request);
+    const order = response.result;
+
+    // Here, validate order amount, status, etc.
+    if (order.status === 'COMPLETED') {
+      const newSubscription = new Subscription({
+        userId,
+        plan,
+        paypalSubscriptionId: order.id, // Store PayPal order ID or subscription ID as needed
+        subscriptionStatus: order.status,
+        subscriptionStart: new Date(),
+        subscriptionExpiry: calculateExpiryDate(),
       });
-  
-      // Create a customer
-      const customer = await stripe.customers.create({
-        payment_method: paymentMethod.id,
-        invoice_settings: {
-          default_payment_method: paymentMethod.id,
-        },
-      });
-  
-      // Create a subscription
-      const subscription = await stripe.subscriptions.create({
-        customer: customer.id,
-        items: [{ price: planId }],
-        expand: ['latest_invoice.payment_intent'],
-      });
-  
-      const paymentIntent = subscription.latest_invoice.payment_intent;
-  
-      if (paymentIntent.status === 'requires_action' || paymentIntent.status === 'requires_payment_method') {
-        return res.status(400).send({
-          requiresAction: true,
-          clientSecret: paymentIntent.client_secret,
-          message: "Further authentication required to complete payment.",
-        });
-      }
-  
-      if (paymentIntent.status !== 'succeeded') {
-        console.log('paymentIntent', paymentIntent);
-        return res.status(400).send({ message: "Payment failed, please try again." });
-      }
-  
-      res.status(201).send({ message: "Payment successful" });
-    } catch (error) {
-      console.error('Error creating payment:', error);
-      res.status(400).send({ message: `Error creating payment: ${error.message}` });
+
+      await newSubscription.save();
+      res.status(201).json(newSubscription);
+    } else {
+      res.status(400).json({ error: 'Order not completed' });
     }
+  } catch (error) {
+    console.error('Error fetching PayPal order:', error);
+    res.status(500).json({ error: error.message });
+  }
 };
+
+// Helper function to calculate the subscription expiry date
+function calculateExpiryDate() {
+  const expiryDate = new Date();
+  expiryDate.setMonth(expiryDate.getMonth() + 1); // Assuming monthly subscriptions
+  return expiryDate;
+}
+ 
 
 exports.getStripePlanDetails = async (planId) => {
   try {
