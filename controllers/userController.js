@@ -56,11 +56,6 @@ exports.createUser = async (req, res) => {
     });
 
     trialUser.organization = organization._id;
-
-    // // Set a trial period (e.g., 30 days)
-    // if (plan_action === 'trial') {
-    //   trialUser.trialEndDate = Date.now() + 30 * 24 * 60 * 60 * 1000;
-    // }
     const confirmationCode = crypto.randomInt(100000, 999999).toString();
     trialUser.confirmationCode = confirmationCode;
     const mailOptions = {
@@ -81,9 +76,10 @@ exports.createUser = async (req, res) => {
           .status(500)
           .send({ message: "Error occurred while sending email" });
       } else {
-        await trialUser.save();
+        const user = await trialUser.save();
         await organization.save();
         res.status(201).send({
+          userId: user._id,
           message: `user created successfully. Welcome email sent to ${email}`,
         });
       }
@@ -107,7 +103,6 @@ exports.confirmEmail = async (req, res) => {
     }
     user.emailConfirmed = true;
     user.confirmationCode = null;
-    const secret = user.generateTotpSecret(); // Generate TOTP secret
     const token = user.generateAuthToken();
     res.status(200).send({ message: "Email confirmed successfully", token });
   } catch (error) {
@@ -162,14 +157,13 @@ exports.getProfile = async (req, res) => {
       return res.status(404).send({ message: "User not found" });
     }
     let planDetails = null;
-    if (user.plan) {
-      try {
-        planDetails = await planController.getStripePlanDetails(user.plan);
-      } catch (error) {
-        console.error('Error fetching Stripe plan details:', error);
-        return res.status(500).send({ message: "Error fetching plan details" });
-      }
+    try {
+      planDetails = await planController.getStripePlanDetails(user._id);
+    } catch (error) {
+      console.error('Error fetching Stripe plan details:', error);
+      return res.status(500).send({ message: "Error fetching plan details" });
     }
+
     res.status(200).json({
       user,
       planDetails, // Include plan details in the response

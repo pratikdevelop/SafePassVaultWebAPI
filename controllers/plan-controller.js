@@ -1,6 +1,6 @@
-const client = require("../paypalClient");
+const {paypalClient} = require("../paypalClient");
 const Subscription = require('../model/subscription')
-
+const paypal = require('@paypal/checkout-server-sdk')
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
   const Plan = require('../model/plan'); // Adjust the path as necessary
 
@@ -46,14 +46,14 @@ exports.createSubscriptions =  async(req, res) => {
   const request = new paypal.orders.OrdersGetRequest(paypalOrderId);
 
   try {
-    const response = await client.execute(request);
+    const response = await paypalClient().execute(request);
     const order = response.result;
 
     // Here, validate order amount, status, etc.
     if (order.status === 'COMPLETED') {
       const newSubscription = new Subscription({
         userId,
-        plan,
+        plan: plan.title,
         paypalSubscriptionId: order.id, // Store PayPal order ID or subscription ID as needed
         subscriptionStatus: order.status,
         subscriptionStart: new Date(),
@@ -61,7 +61,10 @@ exports.createSubscriptions =  async(req, res) => {
       });
 
       await newSubscription.save();
-      res.status(201).json(newSubscription);
+      res.status(201).json({
+        message: 'Subscription created successfully.',
+        subscriptionId: newSubscription.id,
+      });
     } else {
       res.status(400).json({ error: 'Order not completed' });
     }
@@ -81,9 +84,10 @@ function calculateExpiryDate() {
 
 exports.getStripePlanDetails = async (planId) => {
   try {
-    const plan = await stripe.plans.retrieve(planId);
-    const product = await stripe.products.retrieve(plan.product) 
-    return {plan, product};
+    const plan = await Subscription.findOne({userId: planId})
+    console.log(plan);
+    
+    return plan;
   } catch (error) {
     console.error('Error fetching Stripe plan details:', error);
     throw error;
