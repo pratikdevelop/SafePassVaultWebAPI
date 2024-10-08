@@ -5,18 +5,34 @@ const path = require('path');
 const Folder = require('../model/folder')
 const Invitation = require('../model/Invitation'); // Adjust the path as needed
 const User = require('../model/user');
+const AWS = require('aws-sdk');
+const { constants } = require('crypto');
 
 module.exports = {
-  uploadFile: async (req, res) => {
+
+  uploadFile : async (req, res) => {
     try {
       const { originalname, path: filePath, size } = req.file;
-      const { folderId, sharedWith, encrypted, offlineAccess } = req.body;
-
-      // Validate inputs
-      if (!originalname || !filePath || !size) {
+      const { folderId, sharedWith, encrypted = false, offlineAccess = false } = req.body;
+  
+      if (!originalname || !filePath) {
         return res.status(400).json({ message: 'Missing required fields' });
       }
-
+  
+      // Create file stream
+      const fileStream = fs.createReadStream(filePath);
+  
+      // Upload file to S3
+      const params = {
+        Bucket: 'file-storage',
+        Key: originalname,
+        Body: fileStream,
+      };
+  
+      const response = await s3.upload(params).promise();
+      console.log('res', response);
+      
+  
       // Create file document
       const newFile = new File({
         filename: path.basename(filePath),
@@ -24,19 +40,20 @@ module.exports = {
         path: filePath,
         size,
         sharedWith,
-        folderId: folderId ? folderId : null,
+        folderId: folderId || null,
         ownerId: req.user._id,
-        encrypted: encrypted || false,
-        offlineAccess: offlineAccess || false,
+        encrypted,
+        offlineAccess,
       });
-
+  
       await newFile.save();
+  
       res.status(201).json({ message: 'File uploaded successfully', file: newFile });
     } catch (error) {
+      console.error('Upload error:', error); // Log error for debugging
       res.status(500).json({ message: 'Error uploading file', error: error.message });
     }
   },
-
   getFileById: async (req, res) => {
     try {
       const file = await File.findById(req.params.id).populate('folderId ownerId');
@@ -161,8 +178,6 @@ module.exports = {
     try {
       const ownerId = req.user._id;
       const { searchTerm } = req.query;
-      console.log('owner,', ownerId);
-      
 
       // Validate inputs
       if (!searchTerm || !ownerId) {
@@ -187,8 +202,6 @@ module.exports = {
     try {
       const senderId = req.user._id; // Get the sender ID from the request user
       const { searchTerm } = req.params;
-      console.log('searchTerm', searchTerm);
-
       if (!senderId) {
         return res.status(400).json({ message: 'Sender ID is required' });
       }

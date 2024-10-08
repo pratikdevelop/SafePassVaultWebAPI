@@ -22,6 +22,8 @@ const auth = (req, res, next) => {
     }
 
     const decoded = jwt.verify(parts[1],  process.env.SECRET_KEY); // Replace with your actual secret key
+    console.log('decoded');
+    
     req.user = decoded;
     next();
   } catch (err) {
@@ -33,7 +35,7 @@ const auth = (req, res, next) => {
 // Optional function to define public routes (replace with your logic)
 function requiresAuth(url, method) {
 // Consider using a Set for faster lookups, especially with many public routes
-const publicRoutes = ['/login', '/register', '/confirm-email','/resend-code', 'reset-password', 'verify-reset-link', 'change-password', 'plans', 'verify-mfa', '/api/swagger'];
+const publicRoutes = ['/login', '/register', '/confirm-email','/resend-code','/logs', 'reset-password', 'verify-reset-link', 'change-password', 'plans', 'verify-mfa', '/api/swagger'];
 let isverify= false;
 publicRoutes.forEach((route)=>{
   if(url.includes(route)) {

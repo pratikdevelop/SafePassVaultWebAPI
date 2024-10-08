@@ -1,0 +1,4 @@
+{"level":"info","message":"Password created successfully","passwordId":"67010c354333c9f2fefef24c","timestamp":"2024-10-05T09:51:49.616Z","userId":"66ffc668bb7502b31ce09c58"}
+{"level":"info","limit":10,"message":"Fetching all passwords for user: 66ffc668bb7502b31ce09c58","order":"asc","page":1,"search":"undefined","sort":"name","timestamp":"2024-10-05T09:51:49.734Z"}
+{"level":"info","limit":10,"message":"Fetching all passwords for user: 66ffc668bb7502b31ce09c58","order":"asc","page":1,"search":"undefined","sort":"name","timestamp":"2024-10-05T10:10:54.364Z"}
+{"level":"info","limit":10,"message":"Fetching all passwords for user: 66ffc668bb7502b31ce09c58","order":"asc","page":1,"search":"undefined","sort":"name","timestamp":"2024-10-05T10:13:04.136Z"}

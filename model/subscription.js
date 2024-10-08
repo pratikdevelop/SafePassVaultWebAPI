@@ -11,4 +11,5 @@ const subscriptionSchema = new mongoose.Schema({
   planAction: { type: String }, // Action taken on the plan (e.g., created, updated)
 });
 
-module.exports = subscriptionSchema;
+const subscription = mongoose.model('subscription', subscriptionSchema);
+module.exports = subscription;

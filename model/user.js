@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
-const subscriptionSchema = require('./subscription');
 const bcrypt = require('bcryptjs')
+const jwt =require('jsonwebtoken')
 // Main User Schema
 const userSchema = new mongoose.Schema({
   name: {
@@ -90,12 +90,12 @@ userSchema.pre('save', async function (next) {
 
   // Hash password or passphrase if modified
   if (this.isModified('password')) {
-    const salt = await bcrypt.genSalt(10);
+    const salt = await bcrypt.genSalt(12);
     this.password = await bcrypt.hash(this.password, salt);
   }
 
   if (this.isModified('passphrase')) {
-    const salt = await bcrypt.genSalt(10);
+    const salt = await bcrypt.genSalt(12);
     this.passphrase = await bcrypt.hash(this.passphrase, salt);
   }
 
@@ -103,8 +103,9 @@ userSchema.pre('save', async function (next) {
 });
 
 // Generate auth token
-userSchema.methods.generateAuthToken = function (_id) {
-  const token = jwt.sign({ _id }, process.env.SECRET_KEY);
+userSchema.methods.generateAuthToken = function () {
+  const token = jwt.sign({ _id: this._id }, process.env.SECRET_KEY)
+  // const token = jwt.sign({ _id }, process.env.SECRET_KEY);
   this.tokens = [{ token }];
   this.save();
   return token;
@@ -116,6 +117,7 @@ userSchema.statics.findByCredentials = async function (email, password) {
   if (!user) {
     throw new Error('Invalid email');
   }
+  
   const isMatch = await bcrypt.compare(password, user.password);
   if (!isMatch) {
     throw new Error('Invalid password');
