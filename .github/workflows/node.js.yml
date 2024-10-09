@@ -8,7 +8,6 @@ on:
 
 jobs:
   deploy:
-
     runs-on: ubuntu-latest
 
     strategy:
@@ -16,43 +15,73 @@ jobs:
         node-version: [20.x]
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Set up Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v3
-      with:
-        node-version: ${{ matrix.node-version }}
-        cache: 'npm'
+      - name: Set up Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
 
-    - run: npm ci
+      - run: npm ci
 
-    - name: Create .env file
-      run: |
-        touch .env
-        echo "EMAIL_PASSWORD=${{ secrets.EMAIL_PASSWORD }}" >> .env
-        echo "EMAIL_USERNAME=${{ secrets.EMAIL_USERNAME }}" >> .env
-        echo "MONGO_DB=${{ secrets.MONGO_DB }}" >> .env
-        echo "MONGO_DB_PASSWORD=${{ secrets.MONGO_DB_PASSWORD }}" >> .env
-        echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> .env
-        echo "MONGO_DB_USERNAME=${{ secrets.MONGO_DB_USERNAME }}" >> .env
-        echo "Twillo_RECOVERY_CODE=${{ secrets.TWILIO_RECOVERY_CODE }}" >> .env
-        echo "TWILIO_ACCOUNT_SID=${{ secrets.TWILIO_ACCOUNT_SID }}" >> .env
-        echo "TWILIO_AUTH_TOKEN=${{ secrets.TWILIO_AUTH_TOKEN }}" >> .env
-        echo "STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}" >> .env
+      - name: Create .env file
+        run: |
+          touch .env
+          echo "EMAIL_PASSWORD=${{ secrets.EMAIL_PASSWORD }}" >> .env
+          echo "EMAIL_USERNAME=${{ secrets.EMAIL_USERNAME }}" >> .env
+          echo "MONGO_DB=${{ secrets.MONGO_DB }}" >> .env
+          echo "MONGO_DB_PASSWORD=${{ secrets.MONGO_DB_PASSWORD }}" >> .env
+          echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> .env
+          echo "MONGO_DB_USERNAME=${{ secrets.MONGO_DB_USERNAME }}" >> .env
+          echo "TWILIO_RECOVERY_CODE=${{ secrets.TWILIO_RECOVERY_CODE }}" >> .env
+          echo "TWILIO_ACCOUNT_SID=${{ secrets.TWILIO_ACCOUNT_SID }}" >> .env
+          echo "TWILIO_AUTH_TOKEN=${{ secrets.TWILIO_AUTH_TOKEN }}" >> .env
+          echo "STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}" >> .env
 
-    - name: Install PM2 globally
-      run: npm install -g pm2
+      - name: Install PM2 globally
+        run: npm install -g pm2
 
-    - name: Build and Start Application with PM2
-      run: |
-        pm2 start index.js --name "my-app" --env production
+      - name: Build and Start Application with PM2
+        run: |
+          pm2 start index.js --name "my-app" --env production
 
-    - name: Deploy to Render
-      env:
-        RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
-        SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
-      run: |
-        curl -X POST "https://api.render.com/v1/services/${{ env.SERVICE_ID }}/deploys" \
-        -H "Authorization: Bearer ${{ env.RENDER_API_KEY }}" \
-        -H "Content-Type: application/json" \
-        -d '{"clearCache":false}'
+      - name: Deploy to Render
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+        run: |
+          curl -X POST "https://api.render.com/v1/services/${{ env.SERVICE_ID }}/deploys" \
+          -H "Authorization: Bearer ${{ env.RENDER_API_KEY }}" \
+          -H "Content-Type: application/json" \
+          -d '{"clearCache":false}'
+
+  docker-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+
+      - name: Build Docker Image
+        run: docker build -t developerhacker/password-app-api_backend .
+
+      - name: Push Docker Image
+        run: docker push developerhacker/password-app-api_backend
