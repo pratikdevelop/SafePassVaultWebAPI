@@ -1,4 +1,4 @@
-name: Deploy to Render
+name: Deploy to AWS Elastic Beanstalk
 
 on:
   push:
@@ -8,7 +8,6 @@ on:
 
 jobs:
   deploy:
-
     runs-on: ubuntu-latest
 
     strategy:
@@ -35,24 +34,32 @@ jobs:
         echo "MONGO_DB_PASSWORD=${{ secrets.MONGO_DB_PASSWORD }}" >> .env
         echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> .env
         echo "MONGO_DB_USERNAME=${{ secrets.MONGO_DB_USERNAME }}" >> .env
-        echo "Twillo_RECOVERY_CODE=${{ secrets.TWILIO_RECOVERY_CODE }}" >> .env
         echo "TWILIO_ACCOUNT_SID=${{ secrets.TWILIO_ACCOUNT_SID }}" >> .env
         echo "TWILIO_AUTH_TOKEN=${{ secrets.TWILIO_AUTH_TOKEN }}" >> .env
-        echo "STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}" >> .env
-
     - name: Install PM2 globally
       run: npm install -g pm2
 
-    - name: Build and Start Application with PM2
-      run: |
-        pm2 start index.js --name "my-app" --env production
+    - name: Zip the application
+      run: zip -r password-app-api.zip ./*
 
-    - name: Deploy to Render
+    - name: Deploy to AWS Elastic Beanstalk
       env:
-        RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
-        SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_REGION: "us-east-1"  # Change if your Elastic Beanstalk is in a different region
+        S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }} # Add this secret in your GitHub repository
+
       run: |
-        curl -X POST "https://api.render.com/v1/services/${{ env.SERVICE_ID }}/deploys" \
-        -H "Authorization: Bearer ${{ env.RENDER_API_KEY }}" \
-        -H "Content-Type: application/json" \
-        -d '{"clearCache":false}'
+        # Upload the zipped application to S3
+        aws s3 cp password-app-api.zip s3://${{ env.S3_BUCKET_NAME }}/password-app-api.zip
+        
+        # Create a new application version in Elastic Beanstalk
+        aws elasticbeanstalk create-application-version \
+          --application-name "password-api" \
+          --version-label v1.0-${{ github.sha }} \
+          --source-bundle S3Bucket=${{ env.S3_BUCKET_NAME }},S3Key=password-app-api.zip
+        
+        # Deploy the new version to the Elastic Beanstalk environment
+        aws elasticbeanstalk update-environment \
+          --environment-name "Password-api-env" \
+          --version-label v1.0-${{ github.sha }}
