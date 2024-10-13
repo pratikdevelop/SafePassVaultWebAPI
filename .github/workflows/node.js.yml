@@ -48,25 +48,47 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_REGION: "us-east-1"  # Change if your Elastic Beanstalk is in a different region
-          S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }} # Add this secret in your GitHub repository
+          S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
 
         run: |
-          # Get current timestamp for a unique version label
           VERSION_LABEL=v1.0-${{ github.sha }}-$(date +%s)
           
           # Upload the zipped application to S3
           aws s3 cp password-app-api.zip s3://${{ env.S3_BUCKET_NAME }}/password-app-api.zip
           
-          # Create a new application version in Elastic Beanstalk
-          aws elasticbeanstalk create-application-version \
-            --application-name "password-api" \
-            --version-label $VERSION_LABEL \
-            --source-bundle S3Bucket=${{ env.S3_BUCKET_NAME }},S3Key=password-app-api.zip
-          
-          # Deploy the new version to the Elastic Beanstalk environment
-          aws elasticbeanstalk update-environment \
-            --environment-name "Password-api-env" \
-            --version-label $VERSION_LABEL
+          # Check if the environment exists
+          if ! aws elasticbeanstalk describe-environments --application-name "password-api" --environment-names "Password-api-env" > /dev/null 2>&1; then
+            echo "Environment does not exist. Creating a new environment..."
+            
+            # Create a new environment if it doesn't exist
+            aws elasticbeanstalk create-environment \
+              --application-name "password-api" \
+              --environment-name "Password-api-env" \
+              --solution-stack-name "64bit Amazon Linux 2 v3.3.8 running Node.js 14" \
+              --version-label $VERSION_LABEL
+              
+            # Wait for the environment to become ready
+            echo "Waiting for the environment to become ready..."
+            aws elasticbeanstalk wait environment-exists \
+              --application-name "password-api" \
+              --environment-names "Password-api-env"
+
+            aws elasticbeanstalk wait environment-health-ok \
+              --environment-name "Password-api-env"
+          else
+            echo "Environment exists. Updating the environment..."
+            
+            # Create a new application version in Elastic Beanstalk
+            aws elasticbeanstalk create-application-version \
+              --application-name "password-api" \
+              --version-label $VERSION_LABEL \
+              --source-bundle S3Bucket=${{ env.S3_BUCKET_NAME }},S3Key=password-app-api.zip
+            
+            # Update the existing environment with the new version
+            aws elasticbeanstalk update-environment \
+              --environment-name "Password-api-env" \
+              --version-label $VERSION_LABEL
+          fi
 
   docker-build:
     runs-on: ubuntu-latest
