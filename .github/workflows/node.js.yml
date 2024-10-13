@@ -36,6 +36,7 @@ jobs:
           echo "MONGO_DB_USERNAME=${{ secrets.MONGO_DB_USERNAME }}" >> .env
           echo "TWILIO_ACCOUNT_SID=${{ secrets.TWILIO_ACCOUNT_SID }}" >> .env
           echo "TWILIO_AUTH_TOKEN=${{ secrets.TWILIO_AUTH_TOKEN }}" >> .env
+
       - name: Install PM2 globally
         run: npm install -g pm2
 
@@ -50,19 +51,22 @@ jobs:
           S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }} # Add this secret in your GitHub repository
 
         run: |
+          # Get current timestamp for a unique version label
+          VERSION_LABEL=v1.0-${{ github.sha }}-$(date +%s)
+          
           # Upload the zipped application to S3
           aws s3 cp password-app-api.zip s3://${{ env.S3_BUCKET_NAME }}/password-app-api.zip
           
           # Create a new application version in Elastic Beanstalk
           aws elasticbeanstalk create-application-version \
             --application-name "password-api" \
-            --version-label v1.0-${{ github.sha }} \
+            --version-label $VERSION_LABEL \
             --source-bundle S3Bucket=${{ env.S3_BUCKET_NAME }},S3Key=password-app-api.zip
           
           # Deploy the new version to the Elastic Beanstalk environment
           aws elasticbeanstalk update-environment \
             --environment-name "Password-api-env" \
-            --version-label v1.0-${{ github.sha }}
+            --version-label $VERSION_LABEL
 
   docker-build:
     runs-on: ubuntu-latest
