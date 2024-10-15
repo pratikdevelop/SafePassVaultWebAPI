@@ -15,11 +15,11 @@ const transporter = nodemailer.createTransport({
     pass: process.env.EMAIL_PASSWORD,
   },
 });
-const twilio = require("twilio");
-const twilioClient = twilio(
-  process.env.TWILIO_ACCOUNT_SID,
-  process.env.TWILIO_AUTH_TOKEN
-);
+// const twilio = require("twilio");
+// const twilioClient = twilio(
+//   process.env.TWILIO_ACCOUNT_SID,
+//   process.env.TWILIO_AUTH_TOKEN
+// );
 
 
 exports.createUser = async (req, res) => {
@@ -158,9 +158,9 @@ exports.getProfile = async (req, res) => {
     }
     let planDetails = null;
     try {
-      planDetails = await planController.getStripePlanDetails(user._id);
+      planDetails = await planController.getPlanDetails(user._id);
     } catch (error) {
-      console.error('Error fetching Stripe plan details:', error);
+      console.error('Error fetching plan details:', error);
       return res.status(500).send({ message: "Error fetching plan details" });
     }
 
@@ -674,28 +674,28 @@ exports.loginUser = async (req, res) => {
             });
         });
       } else if (user.mfaMethod === "sms") {
-        twilioClient.messages.create(
-          {
-            body: `Your MFA code is: ${mfaCode}`,
-            from: process.env.TWILIO_PHONE_NUMBER,
-            to: user.phone,
-          },
-          (error) => {
-            if (error) {
-              return res
-                .status(500)
-                .send({ message: "Error sending MFA code via SMS" });
-            }
-            res
-              .status(200)
-              .send({
-                message: "MFA code sent via SMS",
-                userId: user._id,
-                mfaRequired: true,
-                mfaMethod: user.mfaMethod,
-              });
-          }
-        );
+   
+        //   {
+        //     body: `Your MFA code is: ${mfaCode}`,
+        //     from: process.env.TWILIO_PHONE_NUMBER,
+        //     to: user.phone,
+        //   },
+        //   (error) => {
+        //     if (error) {
+        //       return res
+        //         .status(500)
+        //         .send({ message: "Error sending MFA code via SMS" });
+        //     }
+        //     res
+        //       .status(200)
+        //       .send({
+        //         message: "MFA code sent via SMS",
+        //         userId: user._id,
+        //         mfaRequired: true,
+        //         mfaMethod: user.mfaMethod,
+        //       });
+        //   }
+        // );
       } else if (user.mfaMethod === "totp") {
         res
           .status(200)

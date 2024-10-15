@@ -8,8 +8,8 @@ services:
     volumes:
       - mongo:/data/db
     environment:
-      MONGO_INITDB_ROOT_USERNAME: pratikraut88895@gmail.com
-      MONGO_INITDB_ROOT_PASSWORD: mongourl@1234556
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
     networks:
       - api
 
@@ -21,10 +21,10 @@ services:
     ports:
       - "3000:3000"
     environment:
-      MONGO_DB_USERNAME: passwordmanagerapp
-      MONGO_DB_PASSWORD: HTkrDeHfL1evR5JQ
-      MONGO_DB: password-manager
-      MONGO_URI: "mongodb://pratikraut88895@gmail.com:mongourl@1234556@mongo:27017/password-manager?authSource=admin"
+      MONGO_DB_USERNAME: ${MONGO_DB_USERNAME}
+      MONGO_DB_PASSWORD: ${MONGO_DB_PASSWORD}
+      MONGO_DB: ${MONGO_DB}
+      MONGO_URI: "mongodb://${MONGO_DB_USERNAME}:${MONGO_DB_PASSWORD}@mongo:27017/${MONGO_DB}?authSource=admin"
     depends_on:
       - mongo
     networks:

@@ -31,7 +31,6 @@
     "paypal-server-api": "^2.0.14",
     "razorpay": "^2.9.4",
     "speakeasy": "^2.0.0",
-    "stripe": "^16.8.0",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "twilio": "^5.2.2",

@@ -21,7 +21,7 @@ const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./swagger')
 const Plan = require('./model/plan')
 const User = require('./model/user')
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 4000;
 app.get("/",  (req, res) => {
   res.send("Hello World");
 });

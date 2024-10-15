@@ -56,13 +56,19 @@ jobs:
           # Upload the zipped application to S3
           aws s3 cp password-app-api.zip s3://${{ env.S3_BUCKET_NAME }}/password-app-api.zip
 
-          # Create a new environment
-          aws elasticbeanstalk create-environment \
-            --application-name "password-api" \
-            --environment-name "Password-api-env" \
-            --solution-stack-name "64bit Amazon Linux 2 v3.3.8 running Node.js 14" \
-            --version-label $VERSION_LABEL \
-            --option-settings Namespace=aws:elasticbeanstalk:application:environment,OptionName=NODE_ENV,Value=production
+          # Create a new environment or update the existing one
+          if ! aws elasticbeanstalk describe-environments --environment-names "Password-api-env" --region $AWS_REGION; then
+            aws elasticbeanstalk create-environment \
+              --application-name "password-api" \
+              --environment-name "Password-api-env" \
+              --solution-stack-name "64bit Amazon Linux 2 v3.3.8 running Node.js 20" \
+              --version-label $VERSION_LABEL \
+              --option-settings Namespace=aws:elasticbeanstalk:application:environment,OptionName=NODE_ENV,Value=production
+          else
+            aws elasticbeanstalk update-environment \
+              --environment-name "Password-api-env" \
+              --version-label $VERSION_LABEL
+          fi
 
   docker-build:
     runs-on: ubuntu-latest
@@ -74,7 +80,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '18'
+          node-version: '20.x'  # Match the Node.js version used in the deploy job
 
       - name: Install Dependencies
         run: npm install
@@ -88,8 +94,22 @@ jobs:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
 
-      - name: Build Docker Image
-        run: docker build -t developerhacker/password-app-api_backend .
+      - name: Create .env for Docker Build
+        run: |
+          echo "MONGO_INITDB_ROOT_USERNAME=${{ secrets.MONGO_INITDB_ROOT_USERNAME }}" >> .env
+          echo "MONGO_INITDB_ROOT_PASSWORD=${{ secrets.MONGO_INITDB_ROOT_PASSWORD }}" >> .env
+          echo "MONGO_DB_USERNAME=${{ secrets.MONGO_DB_USERNAME }}" >> .env
+          echo "MONGO_DB_PASSWORD=${{ secrets.MONGO_DB_PASSWORD }}" >> .env
+          echo "MONGO_DB=${{ secrets.MONGO_DB }}" >> .env
 
-      - name: Push Docker Image
+      - name: Build Docker Image with Environment Variables
+        run: |
+          docker build --build-arg MONGO_INITDB_ROOT_USERNAME=${{ secrets.MONGO_INITDB_ROOT_USERNAME }} \
+                       --build-arg MONGO_INITDB_ROOT_PASSWORD=${{ secrets.MONGO_INITDB_ROOT_PASSWORD }} \
+                       --build-arg MONGO_DB_USERNAME=${{ secrets.MONGO_DB_USERNAME }} \
+                       --build-arg MONGO_DB_PASSWORD=${{ secrets.MONGO_DB_PASSWORD }} \
+                       --build-arg MONGO_DB=${{ secrets.MONGO_DB }} \
+                       -t developerhacker/password-app-api_backend .
+
+      - name: Push Docker Image to Docker Hub
         run: docker push developerhacker/password-app-api_backend
