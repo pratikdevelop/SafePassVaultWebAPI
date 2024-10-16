@@ -9,6 +9,7 @@ const Log = mongoose.model('Log', new mongoose.Schema({
     meta: Object
 }));
 
+
 router.get('/', async (req, res) => {
     try {
         const logs = await Log.find().sort({ timestamp: -1 }).limit(100); // Get last 100 logs
