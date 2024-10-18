@@ -26,7 +26,7 @@ exports.getAllPasswords = async (req, res) => {
         }
       : {};
 
-    logger.info(`Fetching all passwords for user: ${userId}`, { page, limit, sort, order, search });
+    logger.info(`Fetching all passwords for user: ${userId}`, {userId, page, limit, sort, order, search });
 
     const createdPasswords = await Password.find({ created_by: userId, ...searchQuery })
       .populate('tags')

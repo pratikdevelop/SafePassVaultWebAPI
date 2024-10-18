@@ -22,7 +22,6 @@ const auth = (req, res, next) => {
     }
 
     const decoded = jwt.verify(parts[1],  process.env.SECRET_KEY); // Replace with your actual secret key
-    console.log('decoded');
     
     req.user = decoded;
     next();
