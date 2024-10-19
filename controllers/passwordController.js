@@ -72,7 +72,7 @@ exports.getAllPasswords = async (req, res) => {
     const totalCount = createdPasswords.length + sharedPasswords.length;
 
     res.json({
-      data: enhancedPasswords,
+      passwords: enhancedPasswords,
       pagination: {
         totalCount,
         totalPages: Math.ceil(totalCount / limit),
@@ -216,7 +216,7 @@ exports.toggleFavorite = async (req, res) => {
   
     await user.save();
     logger.info('Favorites updated successfully', { userId });
-    return res.status(200).json({ message: 'Favorites updated successfully' });
+    return res.status(200).json({ message: 'Favorites updated successfully', });
   } catch (err) {
     logger.error('Error updating favorites', { error: err.message, userId: req.user._id  });
     res.status(500).json({ message: 'Error updating favorites' });
@@ -281,33 +281,54 @@ exports.addTag = async (req, res) => {
   }
 };
 
-// Post a comment
+
+
 exports.postComment = async (req, res) => {
   try {
     const { passwordId } = req.params;
-    const createdBy = req.user._id;
+    const createdBy = req.user._id; // Assuming req.user contains the authenticated user's info
     const { content } = req.body;
 
+    // Create a new comment
     const newComment = new Comment({
       content,
       createdBy
     });
 
+    // Save the comment to the database
     await newComment.save();
 
+    // Find the associated password
     const password = await Password.findById(passwordId);
     if (!password) {
       logger.warn('Password not found for comment', { passwordId });
       return res.status(404).json({ message: 'Password not found' });
     }
 
+    // Add the new comment ID to the password's comments array
     password.comments.push(newComment._id);
     await password.save();
 
-    logger.info('Comment added successfully', { passwordId, commentId: newComment._id, userId: req.user._id  });
-    res.status(201).json({ message: 'Comment added successfully', comment: newComment });
+    // Retrieve the user's name by ID
+    const userName = await getUserNameById(createdBy); // Assuming you have the function defined
+
+    // Respond with the newly created comment, including the user name
+    logger.info('Comment added successfully', { passwordId, commentId: newComment._id, userId: req.user._id });
+    res.status(201).json({ message: 'Comment added successfully', comment: { ...newComment.toObject(), userName } });
   } catch (error) {
-    logger.error('Error posting comment', { error: error.message, userId: req.user._id  });
+    logger.error('Error posting comment', { error: error.message, userId: req.user._id });
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
+
+// Function to get the user's name by ID
+const getUserNameById = async (userId) => {
+  try {
+    const user = await User.findById(userId).select('name'); // Adjust the field as needed
+    return user ? user.name : null; // Return user name or null if not found
+  } catch (error) {
+    console.error('Error fetching user name:', error);
+    throw error; // Handle error appropriately
+  }
+};
+

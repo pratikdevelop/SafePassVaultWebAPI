@@ -4,8 +4,8 @@ const nodemailer = require("nodemailer");
 const crypto = require("crypto");
 const { v4: uuidv4 } = require("uuid");
 const bcrypt = require("bcryptjs");
-const Invitation = require('../model/Invitation')
-const planController = require('./plan-controller')
+const Invitation = require("../model/Invitation");
+const planController = require("./plan-controller");
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
   port: 587,
@@ -20,10 +20,9 @@ const transporter = nodemailer.createTransport({
 //   process.env.TWILIO_ACCOUNT_SID,
 //   process.env.TWILIO_AUTH_TOKEN
 // );
-
-
 exports.createUser = async (req, res) => {
   try {
+    // Destructure request body
     const {
       email,
       password,
@@ -37,6 +36,7 @@ exports.createUser = async (req, res) => {
       country,
     } = req.body;
 
+    // Create new user and organization instances
     const trialUser = new User({
       email,
       password,
@@ -55,39 +55,45 @@ exports.createUser = async (req, res) => {
       owner: trialUser._id,
     });
 
+    // Associate organization with user
     trialUser.organization = organization._id;
+
+    // Generate confirmation code
     const confirmationCode = crypto.randomInt(100000, 999999).toString();
     trialUser.confirmationCode = confirmationCode;
+
+    // Email options
     const mailOptions = {
-      from: 'passwordmanagementapp@gmail.com',
+      from: "passwordmanagementapp@gmail.com",
       to: email,
-      subject: 'Verification Code Email',
-      html: `<b>Hi ${name}</b>,
-      <p>Your verification code is: ${confirmationCode}</p>
-      <p>Please enter this code to complete your registration.</p>
-      <p>Thanks,</p>
-      <p>Password Management APP</p>`,
+      subject: "Verification Code Email",
+      html: `
+        <b>Hi ${name}</b>,
+        <p>Your verification code is: ${confirmationCode}</p>
+        <p>Please enter this code to complete your registration.</p>
+        <p>Thanks,</p>
+        <p>Password Management APP</p>
+      `,
     };
 
-    transporter.sendMail(mailOptions, async (error, info) => {
-      if (error) {
-        console.log('Error occurred while sending email:', error);
-        return res
-          .status(500)
-          .send({ message: "Error occurred while sending email" });
-      } else {
-        const user = await trialUser.save();
-        await organization.save();
-        res.status(201).send({
-          userId: user._id,
-          message: `user created successfully. Welcome email sent to ${email}`,
-        });
-      }
+    // Send email and save user and organization
+    await transporter.sendMail(mailOptions);
+
+    // Save user and organization to the database
+    const user = await trialUser.save();
+    await organization.save();
+
+    // Respond with success message
+    res.status(201).send({
+      userId: user._id,
+      message: `User  created successfully. Welcome email sent to ${email}`,
     });
-    
   } catch (error) {
-    console.error('Error creating trial user:', error);
-    res.status(400).send({ message: `Error creating trial user: ${error.message}` });
+    // Handle errors
+    console.error("Error creating trial user:", error);
+    res
+      .status(400)
+      .send({ message: `Error creating trial user: ${error.message}` });
   }
 };
 // Confirm email endpoint
@@ -127,27 +133,26 @@ exports.loginUser = async (req, res) => {
   }
 };
 
-exports.getAllUsers = async(req, res)=>{
-    try {
-      // Get the current user ID from the request
-      const userId = req.user._id;
-  
-      // Find all invitations where the sender is the current user
- const invitations = await Invitation.find({ sender: userId })
+exports.getAllUsers = async (req, res) => {
+  try {
+    // Get the current user ID from the request
+    const userId = req.user._id;
+
+    // Find all invitations where the sender is the current user
+    const invitations = await Invitation.find({ sender: userId })
       .populate({
-        path: 'recipient',
-        select: 'name email phone'  
+        path: "recipient",
+        select: "name email phone",
       })
-      .select('status organization createdAt')
+      .select("status organization createdAt")
       .exec();
-      // Send the invitations as the response
-      res.status(200).json(invitations);
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ message: 'Error retrieving invitations' });
-    }
-}
- 
+    // Send the invitations as the response
+    res.status(200).json(invitations);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Error retrieving invitations" });
+  }
+};
 
 // Get user profile
 exports.getProfile = async (req, res) => {
@@ -160,7 +165,7 @@ exports.getProfile = async (req, res) => {
     try {
       planDetails = await planController.getPlanDetails(user._id);
     } catch (error) {
-      console.error('Error fetching plan details:', error);
+      console.error("Error fetching plan details:", error);
       return res.status(500).send({ message: "Error fetching plan details" });
     }
 
@@ -177,8 +182,17 @@ exports.getProfile = async (req, res) => {
 // Update user profile
 exports.updateProfile = async (req, res) => {
   const updates = Object.keys(req.body);
-  
-  const allowedUpdates = ["name","email","billingAddress","state","phone","postalCode","city","country"];
+
+  const allowedUpdates = [
+    "name",
+    "email",
+    "billingAddress",
+    "state",
+    "phone",
+    "postalCode",
+    "city",
+    "country",
+  ];
   const isValidOperation = updates.every((update) =>
     allowedUpdates.includes(update)
   );
@@ -233,7 +247,7 @@ exports.resetPassword = async (req, res) => {
       { $set: { resetToken, resetTokenExpiry } }
     );
     const payload = `${user._id}:${resetToken}`;
-    const encodedToken = Buffer.from(payload).toString('base64');
+    const encodedToken = Buffer.from(payload).toString("base64");
 
     // Create the reset link
     const resetLink = `http://localhost:4200/auth/change-password?token=${encodedToken}`;
@@ -252,15 +266,10 @@ exports.resetPassword = async (req, res) => {
              Password Management APP`,
     };
 
-    transporter.sendMail(mailOptions, async (error, ) => {
-      if (error) {
-        res.status(500).send({ message: "Error sending email" });
-      } else {
-        res.status(200).send({
-          message: "Password reset link sent successfully",
-          userId: user._id,
-        });
-      }
+    await transporter.sendMail(mailOptions);
+    res.status(200).send({
+      message: "Password reset link sent successfully",
+      userId: user._id,
     });
   } catch (error) {
     console.error(error);
@@ -322,8 +331,8 @@ exports.getOrganizations = async (req, res) => {
       owner: req.user._id,
     })
       .populate({
-        path:"owner",
-        select: "name email"
+        path: "owner",
+        select: "name email",
       })
       .exec();
     res.json(organizations);
@@ -351,7 +360,7 @@ exports.sendInvitation = async (req, res) => {
       email,
       name,
       phone,
-      role: 'user'
+      role: "user",
     });
 
     // Save the recipient user to the database
@@ -388,28 +397,17 @@ exports.sendInvitation = async (req, res) => {
     };
 
     // Send the email using the configured transporter
-    transporter.sendMail(mailOptions, (error, info) => {
-      if (error) {
-        console.error("Error sending invitation email:", error);
-        return res
-          .status(500)
-          .json({ message: "Error sending invitation email" });
-      } else {
-        res.status(200).json({ message: "Invitation sent successfully" });
-      }
-    });
-
+    await transporter.sendMail(mailOptions);
+    res.status(200).json({ message: "Invitation sent successfully" });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Error sending invitation" });
   }
 };
 
-
-
 exports.resendInvitation = async (req, res) => {
   const organizationId = req.params.organizationId;
-  const recipientId = req.params.recipientId
+  const recipientId = req.params.recipientId;
 
   try {
     // Find the organization
@@ -421,7 +419,7 @@ exports.resendInvitation = async (req, res) => {
     // Find the existing invitation
     const invitation = await Invitation.findOne({
       organization: organization._id,
-      recipient: recipientId
+      recipient: recipientId,
     });
 
     if (!invitation) {
@@ -448,22 +446,13 @@ exports.resendInvitation = async (req, res) => {
              <p>Thanks,<br>Password Management APP</p>`,
     };
 
-    transporter.sendMail(mailOptions, (error, info) => {
-      if (error) {
-        console.error("Error sending invitation email:", error);
-        return res
-          .status(500)
-          .json({ message: "Error sending invitation email" });
-      } else {
-        res.status(200).json({ message: "Invitation resent successfully" });
-      }
-    });
+    await transporter.sendMail(mailOptions);
+    res.status(200).json({ message: "Invitation resent successfully" });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Error resending invitation" });
   }
 };
-
 
 exports.logout = async (req, res) => {
   const userId = req.user._id; // Extract user ID from the decoded token
@@ -566,12 +555,10 @@ exports.acceptInvitation = async (req, res) => {
           .status(500)
           .json({ message: "Error sending verification code email" });
       } else {
-        res
-          .status(200)
-          .json({
-            message:
-              "Invitation accepted and verification code sent successfully",
-          });
+        res.status(200).json({
+          message:
+            "Invitation accepted and verification code sent successfully",
+        });
       }
     });
   } catch (error) {
@@ -610,7 +597,7 @@ exports.saveMfaSettings = async (req, res) => {
 exports.verifyMfaCode = async (req, res) => {
   const { email, mfaCode } = req.body;
   try {
-    const user = await User.findOne({email});
+    const user = await User.findOne({ email });
     if (!user) {
       return res.status(404).send({ message: "User not found" });
     }
@@ -625,10 +612,13 @@ exports.verifyMfaCode = async (req, res) => {
     await user.save();
 
     const token = user.generateAuthToken();
-    res.status(200).send({ token, 
-      message: "MFA code verified successfully",
-      success: true
-     });
+    res
+      .status(200)
+      .send({
+        token,
+        message: "MFA code verified successfully",
+        success: true,
+      });
   } catch (error) {
     console.error(error);
     res.status(500).send({ message: "Error verifying MFA code" });
@@ -639,7 +629,6 @@ exports.loginUser = async (req, res) => {
   const { username, password } = req.body;
   try {
     const user = await User.findByCredentials(username, password);
-
 
     if (user.mfaEnabled) {
       const mfaCode = crypto.randomInt(100000, 999999).toString();
@@ -665,16 +654,13 @@ exports.loginUser = async (req, res) => {
               .status(500)
               .send({ message: "Error sending MFA code via email" });
           }
-          res
-            .status(200)
-            .send({
-              message: "MFA code sent via email",
-              mfaRequired: true,
-              mfaMethod: user.mfaMethod,
-            });
+          res.status(200).send({
+            message: "MFA code sent via email",
+            mfaRequired: true,
+            mfaMethod: user.mfaMethod,
+          });
         });
       } else if (user.mfaMethod === "sms") {
-   
         //   {
         //     body: `Your MFA code is: ${mfaCode}`,
         //     from: process.env.TWILIO_PHONE_NUMBER,
@@ -697,14 +683,12 @@ exports.loginUser = async (req, res) => {
         //   }
         // );
       } else if (user.mfaMethod === "totp") {
-        res
-          .status(200)
-          .send({
-            message: "TOTP MFA enabled",
-            userId: user._id,
-            mfaRequired: true,
-            mfaMethod: user.mfaMethod,
-          });
+        res.status(200).send({
+          message: "TOTP MFA enabled",
+          userId: user._id,
+          mfaRequired: true,
+          mfaMethod: user.mfaMethod,
+        });
       } else {
         res.status(400).send({ message: "Unsupported MFA method" });
       }
@@ -718,41 +702,38 @@ exports.loginUser = async (req, res) => {
   }
 };
 
-exports.resendConfirmationCode = async(req,res)=>{
+exports.resendConfirmationCode = async (req, res) => {
   const email = req.params.email;
   const user = await User.findOne({ email });
   if (!user) {
     return res.status(404).send({ message: "User not found" });
   }
 
-
   const confirmationCode = crypto.randomInt(100000, 999999).toString();
   user.confirmationCode = confirmationCode;
 
-    const mailOptions = {
-      from: 'passwordmanagementapp@gmail.com',
-      to: email,
-      subject: 'Verification Code Email',
-      html: `<b>Hi ${user.name}</b>,
+  const mailOptions = {
+    from: "passwordmanagementapp@gmail.com",
+    to: email,
+    subject: "Verification Code Email",
+    html: `<b>Hi ${user.name}</b>,
       <p>Your verification code is: ${confirmationCode}</p>
       <p>Please enter this code to complete your registration.</p>
       <p>Thanks,</p>
       <p>Password Management APP</p>`,
-    };
+  };
 
-    transporter.sendMail(mailOptions, async (error, info) => {
-      if (error) {
-        console.log('Error occurred while sending email:', error);
-        return res
-          .status(500)
-          .send({ message: "Error occurred while sending email" });
-      } else {
-        await user.save();
-        res.status(201).send({
-          message: `Resend Email Confirmation code send to your mail`,
-        });
-      }
-    });
-
-}
-
+  transporter.sendMail(mailOptions, async (error, info) => {
+    if (error) {
+      console.log("Error occurred while sending email:", error);
+      return res
+        .status(500)
+        .send({ message: "Error occurred while sending email" });
+    } else {
+      await user.save();
+      res.status(201).send({
+        message: `Resend Email Confirmation code send to your mail`,
+      });
+    }
+  });
+};
