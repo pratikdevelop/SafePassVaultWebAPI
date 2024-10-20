@@ -26,6 +26,12 @@ app.get("/",  (req, res) => {
   res.send("Hello World");
 });
 app.use(cors());
+app.use(cors({
+  origin: 'https://safepassvault.co.in/', // Replace this with your actual frontend domain
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use(express.json());
 app.use(auth);
 app.use('/api/swagger', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
