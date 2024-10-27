@@ -21,19 +21,15 @@ const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./swagger')
 const Plan = require('./model/plan')
 const User = require('./model/user')
-const port = process.env.PORT || 4000;
+const folderRoutes = require('./routes/folderRoutes'); // Adjust the path as necessary
+const port = process.env.PORT || 3000;
 app.get("/",  (req, res) => {
   res.send("Hello World");
 });
 app.use(cors());
-app.use(cors({
-  origin: 'https://safepassvault.co.in/', // Replace this with your actual frontend domain
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
-
 app.use(express.json());
 app.use(auth);
+app.use('/api/folders', folderRoutes);
 app.use('/api/swagger', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use("/api/auth", users);
 app.use("/api/passwords", password);

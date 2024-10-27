@@ -12,7 +12,7 @@ const securityQuestionSchema = new Schema({
       type: String,
       required: true,
       trim: true,
-      minlength: 10,  // Minimum length for a security question
+      minlength: 2,  // Minimum length for a security question
       maxlength: 255  // Maximum length for a security question
     },
     answer: {

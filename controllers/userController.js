@@ -6,23 +6,25 @@ const { v4: uuidv4 } = require("uuid");
 const bcrypt = require("bcryptjs");
 const Invitation = require("../model/Invitation");
 const planController = require("./plan-controller");
-const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 587,
-  secure: false,
-  auth: {
-    user: process.env.EMAIL_USERNAME,
-    pass: process.env.EMAIL_PASSWORD,
-  },
-});
 // const twilio = require("twilio");
 // const twilioClient = twilio(
 //   process.env.TWILIO_ACCOUNT_SID,
 //   process.env.TWILIO_AUTH_TOKEN
 // );
+const { validateUserRegistration } = require('../utlis/validators'); // Import validation function
+const { sendEmail } = require('../utlis/email'); // Import email sender function
+
 exports.createUser = async (req, res) => {
   try {
-    // Destructure request body
+    // Validate user registration data
+    const validation = await validateUserRegistration(req.body);
+
+    // If validation fails, return errors
+    if (!validation.isValid) {
+      return res.status(400).json({ errors: validation.errors });
+    }
+
+    // Destructure request body (already validated)
     const {
       email,
       password,
@@ -64,41 +66,45 @@ exports.createUser = async (req, res) => {
 
     // Email options
     const mailOptions = {
-      from: "passwordmanagementapp@gmail.com",
+      from: "safepassvault@gmail.com",
       to: email,
       subject: "Verification Code Email",
       html: `
-        <b>Hi ${name}</b>,
+        <b>Hello ${name}</b>,
         <p>Your verification code is: ${confirmationCode}</p>
         <p>Please enter this code to complete your registration.</p>
         <p>Thanks,</p>
-        <p>Password Management APP</p>
+        <p>SafePassVault APP</p>
       `,
     };
 
-    // Send email and save user and organization
-    await transporter.sendMail(mailOptions);
+    // Send email
+    sendEmail(mailOptions).then((res)=>{}).catch((err)=>{
+      console.log(err);
+    })
 
     // Save user and organization to the database
     const user = await trialUser.save();
     await organization.save();
 
     // Respond with success message
-    res.status(201).send({
+    return res.status(201).json({
       userId: user._id,
-      message: `User  created successfully. Welcome email sent to ${email}`,
+      message: `User created successfully. Welcome email sent to ${email}`,
     });
   } catch (error) {
     // Handle errors
     console.error("Error creating trial user:", error);
-    res
+    return res
       .status(400)
-      .send({ message: `Error creating trial user: ${error.message}` });
+      .json({ message: `Error creating trial user: ${error.message}` });
   }
-};
+}
+
+
 // Confirm email endpoint
 exports.confirmEmail = async (req, res) => {
-  const { email, confirmationCode } = req.body;
+  const { email='testuser445@yopmail.com', confirmationCode } = req.body;
   try {
     const user = await User.findOne({ email });
     if (!user) {
@@ -110,10 +116,10 @@ exports.confirmEmail = async (req, res) => {
     user.emailConfirmed = true;
     user.confirmationCode = null;
     const token = user.generateAuthToken();
-    res.status(200).send({ message: "Email confirmed successfully", token });
+    res.status(200).json({ message: "Email confirmed successfully", token });
   } catch (error) {
     console.error(error);
-    res.status(400).send({ message: "Error confirming email" });
+    res.status(400).json({ message: "Error confirming email" });
   }
 };
 

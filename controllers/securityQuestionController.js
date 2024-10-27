@@ -4,10 +4,13 @@ const SecurityQuestion = require('../model/securityQuestion');
 exports.addOrUpdateSecurityQuestions = async (req, res) => {
   try {
     const userId = req.user._id;
-    const securityQuestions = req.body; // Expecting an array of security questions and answers
+    let securityQuestions =req.body; // Expecting an array of security questions and answers
 
     if (!Array.isArray(securityQuestions) || securityQuestions.length === 0) {
-      return res.status(400).json({ error: 'Invalid securityQuestions array' });
+      securityQuestions = [
+        { question: securityQuestions.securityQuestion1, answer: securityQuestions.securityAnswer1 },
+        { question: securityQuestions.securityQuestion2, answer: securityQuestions.securityAnswer2 }
+      ];
     }
 
     // Create or update the document
