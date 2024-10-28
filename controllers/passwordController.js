@@ -8,13 +8,15 @@ const Tag = require('../model/tag')
 const Comment = require('../model/comment')
 const logger = require('../logger'); // Adjust the path as needed
 
-// Get all passwords with pagination, sorting, and searching
+// Get all passwords with pagination, sorting, searching, and folder association
 exports.getAllPasswords = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { page = 1, limit = 10, sort = 'name', order = 'asc', search } = req.query;
+    const { page = 1, limit = 10, sort = 'name', order = 'asc', search, folderId } = req.query;
+    console.log('ddd', req.query)
 
     const sortOption = { [sort]: order === 'asc' ? 1 : -1 };
+
     const searchQuery = search && search !== 'undefined'
       ? {
           $or: [
@@ -26,33 +28,44 @@ exports.getAllPasswords = async (req, res) => {
         }
       : {};
 
-    logger.info(`Fetching all passwords for user: ${userId}`, {userId, page, limit, sort, order, search });
+    // Build the query object
+    const query = {
+      created_by: userId,
+      ...searchQuery
+    };
 
-    const createdPasswords = await Password.find({ created_by: userId, ...searchQuery })
+    // Add folder ID to the query if provided
+    query.folder = folderId;
+
+    const createdPasswords = await Password.find(query)
       .populate('tags')
       .populate({ path: 'comments', populate: { path: 'createdBy', select: 'name' } })
       .populate({ path: 'created_by', select: 'name' })
       .populate({ path: 'modifiedby', select: 'name' })
+      .populate('folder') // Populate folder information
       .sort(sortOption)
       .skip((page - 1) * limit)
       .limit(Number(limit));
+    console.log('v',createdPasswords);
+    
 
-    const sharedItems = await SharedItem.find({ 
-      itemType: 'password', 
-      'sharedWith.userId': userId 
+    const sharedItems = await SharedItem.find({
+      itemType: 'password',
+      'sharedWith.userId': userId
     }).populate('itemId');
 
     const sharedPasswordIds = sharedItems.map(item => item.itemId);
 
-    const sharedPasswords = await Password.find({ 
-      _id: { $in: sharedPasswordIds }, 
-      ...searchQuery 
+    const sharedPasswords = await Password.find({
+      _id: { $in: sharedPasswordIds },
+      ...searchQuery
     })
-    .populate('tags')
-    .populate({ path: 'comments', populate: { path: 'createdBy', select: 'name' } })
-    .populate({ path: 'created_by', select: 'name' })
-    .populate({ path: 'modifiedby', select: 'name' })
-    .sort(sortOption);
+      .populate('tags')
+      .populate({ path: 'comments', populate: { path: 'createdBy', select: 'name' } })
+      .populate({ path: 'created_by', select: 'name' })
+      .populate({ path: 'modifiedby', select: 'name' })
+      .populate('folder') // Populate folder information
+      .sort(sortOption);
 
     const allPasswords = [...createdPasswords, ...sharedPasswords];
     const user = await User.findById(userId);
@@ -81,17 +94,25 @@ exports.getAllPasswords = async (req, res) => {
       }
     });
   } catch (err) {
-    logger.error('Error fetching passwords', { userId, error: err.message });
+    console.error(err);
     res.status(500).json({ message: "Error fetching passwords" });
   }
 };
 
-// Create a new password
+
+// Create a new password with folder association
 exports.createPassword = async (req, res) => {
   try {
+    const { folderId } = req.body; // Extract folder ID from request body
     req.body["created_by"] = req.user._id;
     req.body["modifiedby"] = req.user._id;
-    req.body["folder"] = req.user._id;
+
+    // Ensure folder ID is included
+    if (!folderId) {
+      return res.status(400).json({ message: "Folder ID is required" });
+    }
+
+    req.body["folder"] = folderId; // Set folder ID
 
     const newPassword = new Password(req.body);
     const savedPassword = await newPassword.save();

@@ -31,9 +31,6 @@ const passwordSchema = new mongoose.Schema({
   totp: {
     type: Number,
   },
-  name: {
-    type: String,
-  },
   description: {
     type: String
   },
@@ -48,17 +45,25 @@ const passwordSchema = new mongoose.Schema({
   },
   createdAt: {
     type: Date,
-    default: Date.now, // Set the default value to the current timestamp
+    default: Date.now,
   },
   updatedAt: {
     type: Date,
-    default: Date.now, // Set the default value to the current timestamp
+    default: Date.now,
   },
-  tags: [{ type: mongoose.Schema.Types.ObjectId, ref: 'tag' }],
+  tags: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'tag'
+  }],
   comments: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Comment'
-  }]
+  }],
+  folder: {  // New field to associate with a folder
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Folder',
+    required: true // Make it required if every password must belong to a folder
+  }
 });
 
 const Password = mongoose.model('Password', passwordSchema);
