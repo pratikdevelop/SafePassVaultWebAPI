@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const userController = require('../controllers/userController');
+const multer = require('multer');
+const upload = multer({ storage: multer.memoryStorage() });
 
 /**
  * @swagger
@@ -274,5 +276,9 @@ router.post('/resend-invitation/:organizationId/:recipientId', userController.re
  *         description: Confirmation code resent successfully.
  */
 router.get('/resend-code/:email', userController.resendConfirmationCode);
+
+
+// Define the file upload route
+router.post('/upload', upload.single('file'), userController.uploadFile);
 
 module.exports = router;

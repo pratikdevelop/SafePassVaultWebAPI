@@ -7,16 +7,28 @@ const { parse } = require('json2csv');
 const Tag = require('../model/tag')
 const Comment = require('../model/comment')
 const logger = require('../logger'); // Adjust the path as needed
+const shareItem = require('../model/shareItem');
 
 // Get all passwords with pagination, sorting, searching, and folder association
 exports.getAllPasswords = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { page = 1, limit = 10, sort = 'name', order = 'asc', search, folderId } = req.query;
-    console.log('ddd', req.query)
+    const { 
+      page = 1, 
+      limit = 10, 
+      sort = 'name', 
+      order = 'asc', 
+      search, 
+      folderId, 
+      filter = 'all' 
+    } = req.query;
 
+    const user = await User.findById(userId);
+
+    // Set sort option
     const sortOption = { [sort]: order === 'asc' ? 1 : -1 };
 
+    // Build the search query
     const searchQuery = search && search !== 'undefined'
       ? {
           $or: [
@@ -28,49 +40,62 @@ exports.getAllPasswords = async (req, res) => {
         }
       : {};
 
-    // Build the query object
+    // Initialize the main query object
     const query = {
-      created_by: userId,
       ...searchQuery
     };
 
-    // Add folder ID to the query if provided
-    query.folder = folderId;
+    // Apply folderId filter if provided
+    if (folderId) query.folder = folderId;
 
-    const createdPasswords = await Password.find(query)
+    // Define filter-specific logic
+    let sharedItems = [];
+    switch (filter) {
+      case 'favourite':
+        query._id = { $in: user.favorites };
+        break;
+        
+      case 'shared_with_me':
+        sharedItems = await SharedItem.find({
+          itemType: 'password',
+          'sharedWith.userId': userId
+        }).populate('itemId');
+        
+        const sharedPasswordIds = sharedItems.map(item => item.itemId);
+        query._id = { $in: sharedPasswordIds };
+        break;
+        
+      case 'created_by_me':
+        query.created_by = userId;
+        break;
+
+      case 'all':
+      default:
+        query.$or = [{ created_by: userId }];
+        sharedItems = await SharedItem.find({
+          itemType: 'password',
+          'sharedWith.userId': userId
+        }).populate('itemId');
+        const sharedPasswordIdsForAll = sharedItems.map(item => item.itemId); 
+        if (sharedPasswordIdsForAll.length > 0) {
+          query.$or.push({ _id: { $in: sharedPasswordIdsForAll } });
+        }       
+        break;
+    }
+
+    // Execute the query
+    const passwords = await Password.find(query)
       .populate('tags')
       .populate({ path: 'comments', populate: { path: 'createdBy', select: 'name' } })
       .populate({ path: 'created_by', select: 'name' })
       .populate({ path: 'modifiedby', select: 'name' })
-      .populate('folder') // Populate folder information
+      .populate('folder')
       .sort(sortOption)
       .skip((page - 1) * limit)
       .limit(Number(limit));
-    console.log('v',createdPasswords);
-    
-
-    const sharedItems = await SharedItem.find({
-      itemType: 'password',
-      'sharedWith.userId': userId
-    }).populate('itemId');
-
-    const sharedPasswordIds = sharedItems.map(item => item.itemId);
-
-    const sharedPasswords = await Password.find({
-      _id: { $in: sharedPasswordIds },
-      ...searchQuery
-    })
-      .populate('tags')
-      .populate({ path: 'comments', populate: { path: 'createdBy', select: 'name' } })
-      .populate({ path: 'created_by', select: 'name' })
-      .populate({ path: 'modifiedby', select: 'name' })
-      .populate('folder') // Populate folder information
-      .sort(sortOption);
-
-    const allPasswords = [...createdPasswords, ...sharedPasswords];
-    const user = await User.findById(userId);
-
-    const enhancedPasswords = allPasswords.map(password => {
+  
+    // Enhance passwords with favorites and shared item info
+    const enhancedPasswords = await Promise.all(passwords.map(async password => {
       const isFavorite = user.favorites.includes(password._id);
       const sharedItem = sharedItems.find(item => item.itemId.toString() === password._id.toString());
 
@@ -80,9 +105,10 @@ exports.getAllPasswords = async (req, res) => {
         sharedItem: sharedItem ? 
            sharedItem.sharedWith.find(sw => sw.userId.toString() === userId.toString()) : null
       };
-    });
+    }));
 
-    const totalCount = createdPasswords.length + sharedPasswords.length;
+    // Fetch total count for pagination
+    const totalCount = await Password.countDocuments(query);
 
     res.json({
       passwords: enhancedPasswords,
@@ -98,6 +124,7 @@ exports.getAllPasswords = async (req, res) => {
     res.status(500).json({ message: "Error fetching passwords" });
   }
 };
+
 
 
 // Create a new password with folder association

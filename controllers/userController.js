@@ -13,6 +13,16 @@ const planController = require("./plan-controller");
 // );
 const { validateUserRegistration } = require('../utlis/validators'); // Import validation function
 const { sendEmail } = require('../utlis/email'); // Import email sender function
+const AWS = require('aws-sdk');
+
+const Folder = require('../model/folder')
+
+// Configure AWS S3
+const s3 = new AWS.S3({
+  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  region: process.env.AWS_REGION,
+});
 
 exports.createUser = async (req, res) => {
   try {
@@ -30,7 +40,6 @@ exports.createUser = async (req, res) => {
       password,
       name,
       phone,
-      role,
       billingAddress,
       city,
       state,
@@ -44,7 +53,6 @@ exports.createUser = async (req, res) => {
       password,
       name,
       phone,
-      role,
       billingAddress,
       city,
       state,
@@ -79,13 +87,27 @@ exports.createUser = async (req, res) => {
     };
 
     // Send email
-    sendEmail(mailOptions).then((res)=>{}).catch((err)=>{
+    sendEmail(mailOptions).then((res) => {}).catch((err) => {
       console.log(err);
-    })
+    });
 
     // Save user and organization to the database
     const user = await trialUser.save();
     await organization.save();
+
+    // Define the default folder types
+    const folderTypes = ['passwords', 'notes', 'cards', 'proof', 'files'];
+
+    // Create default folders for the new user
+    const folders = folderTypes.map(type => ({
+      user: user._id,
+      name: `${type.charAt(0).toUpperCase() + type.slice(1)} Folder`,
+      type: type,
+      isSpecial: true, // Set as true for default folders
+    }));
+
+    // Save folders to the database
+    await Folder.insertMany(folders);
 
     // Respond with success message
     return res.status(201).json({
@@ -99,17 +121,57 @@ exports.createUser = async (req, res) => {
       .status(400)
       .json({ message: `Error creating trial user: ${error.message}` });
   }
-}
+};
 
 
-// Confirm email endpoint
+
+exports.uploadFile = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+
+    // S3 upload parameters
+    const params = {
+      Bucket: process.env.S3_BUCKET_NAME,
+      Key: `uploads/${Date.now()}_${req.file.originalname}`,
+      Body: req.file.buffer,
+      ContentType: req.file.mimetype,
+      ACL: 'public-read',
+    };
+
+    // Upload file to S3
+    const data = await s3.upload(params).promise();
+
+    // Save file URL to the user's document
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    user.userImage = data.Location; // Store the S3 URL in the userImage field
+    await user.save();
+
+    res.status(200).json({
+      message: 'File uploaded and user image updated successfully',
+      url: data.Location,
+      user,
+    });
+  } catch (error) {
+    console.error('Error uploading file:', error);
+    res.status(500).json({ message: 'File upload failed', error: error.message });
+  }
+};
+// Confirm email endpointre
 exports.confirmEmail = async (req, res) => {
-  const { email='testuser445@yopmail.com', confirmationCode } = req.body;
+  const { email, confirmationCode } = req.body;
   try {
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(400).send({ message: "Invalid email" });
     }
+    console.log('fff', user);
+    
     if (user.confirmationCode !== confirmationCode) {
       return res.status(400).send({ message: "Invalid confirmation code" });
     }
