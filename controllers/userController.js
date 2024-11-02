@@ -165,6 +165,8 @@ exports.uploadFile = async (req, res) => {
 // Confirm email endpointre
 exports.confirmEmail = async (req, res) => {
   const { email, confirmationCode } = req.body;
+  console.log('ff');
+  
   try {
     const user = await User.findOne({ email });
     if (!user) {
@@ -185,21 +187,6 @@ exports.confirmEmail = async (req, res) => {
   }
 };
 
-// Login endpoint
-exports.loginUser = async (req, res) => {
-  const { username, password } = req.body;
-  try {
-    const user = await User.findByCredentials(username, password);
-    if (!user.emailConfirmed) {
-      return res.status(400).send({ message: "Email not confirmed" });
-    }
-    const token = user.generateAuthToken();
-    res.status(200).send({ token });
-  } catch (error) {
-    console.error(error);
-    res.status(400).send({ message: "Invalid email or password" });
-  }
-};
 
 exports.getAllUsers = async (req, res) => {
   try {

@@ -52,7 +52,7 @@ exports.getAllPasswords = async (req, res) => {
     let sharedItems = [];
     switch (filter) {
       case 'favourite':
-        query._id = { $in: user.favorites };
+        query._id = { $in: user?.favorites };
         break;
         
       case 'shared_with_me':
