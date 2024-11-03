@@ -8,6 +8,7 @@ const Tag = require('../model/tag')
 const Comment = require('../model/comment')
 const logger = require('../logger'); // Adjust the path as needed
 const shareItem = require('../model/shareItem');
+const Folder = require('../model/folder')
 
 // Get all passwords with pagination, sorting, searching, and folder association
 exports.getAllPasswords = async (req, res) => {
@@ -136,11 +137,31 @@ exports.createPassword = async (req, res) => {
 
     // Ensure folder ID is included
     if (!folderId) {
-      return res.status(400).json({ message: "Folder ID is required" });
+      console.log('vnfjkhvjf');
+      let folder  = await Folder.find({
+          user: req.user._id,
+          type:"passwords"
+      })
+      console.log('folder', folder);
+      
+      if (folder.length === 0) {
+        // Create default folders for the new user
+        const folders =new Folder({
+          user: req.user._id,
+          name: `Passwords Folder`,
+          type: 'passwords',
+          isSpecial: true, // Set as true for default folders
+        });
+        folder = await folders.save(folders);
+        console.log(folder)
+        req.body["folder"] = folder._id;
+      }      
+    }else {
+      req.body["folder"] = folderId; // Set folder ID
     }
 
-    req.body["folder"] = folderId; // Set folder ID
-
+    console.log('fff', req.body);
+    
     const newPassword = new Password(req.body);
     const savedPassword = await newPassword.save();
 

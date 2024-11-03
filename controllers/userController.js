@@ -165,15 +165,12 @@ exports.uploadFile = async (req, res) => {
 // Confirm email endpointre
 exports.confirmEmail = async (req, res) => {
   const { email, confirmationCode } = req.body;
-  console.log('ff');
   
   try {
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(400).send({ message: "Invalid email" });
-    }
-    console.log('fff', user);
-    
+    }    
     if (user.confirmationCode !== confirmationCode) {
       return res.status(400).send({ message: "Invalid confirmation code" });
     }
@@ -752,7 +749,6 @@ exports.loginUser = async (req, res) => {
       res.status(200).send({ token });
     }
   } catch (error) {
-    console.error(error);
     res.status(400).send({ message: "Invalid email or password" });
   }
 };
