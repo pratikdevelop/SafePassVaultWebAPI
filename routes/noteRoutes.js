@@ -22,4 +22,7 @@ router.delete('/:id', noteController.deleteNote);
 
 router.post('/note/:noteId/favorite', noteController.toggleFavorite);
 
+router.post('/add-tag',  noteController.addTag);
+
+router.post('/:noteId/comments', noteController.postComment)
 module.exports = router;
