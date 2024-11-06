@@ -460,19 +460,12 @@ exports.postComment = async (req, res) => {
       commentId: newComment._id,
       userId: req.user._id,
     });
-<<<<<<< Updated upstream
-    res.status(201).json({
-      message: "Comment added successfully",
-      comment: { ...newComment.toObject(), userName },
-    });
-=======
     res
       .status(201)
       .json({
         message: "Comment added successfully",
         comment: { ...newComment.toObject(), userName },
       });
->>>>>>> Stashed changes
   } catch (error) {
     logger.error("Error posting comment", {
       error: error.message,
