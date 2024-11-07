@@ -1,7 +1,7 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const userController = require('../controllers/userController');
-const multer = require('multer');
+const userController = require("../controllers/userController");
+const multer = require("multer");
 const upload = multer({ storage: multer.memoryStorage() });
 
 /**
@@ -25,7 +25,7 @@ const upload = multer({ storage: multer.memoryStorage() });
  *       201:
  *         description: User successfully registered.
  */
-router.post('/register', userController.createUser);
+router.post("/register", userController.createUser);
 
 /**
  * @swagger
@@ -37,7 +37,7 @@ router.post('/register', userController.createUser);
  *       200:
  *         description: Email successfully confirmed.
  */
-router.post('/confirm-email', userController.confirmEmail);
+router.post("/confirm-email", userController.confirmEmail);
 
 /**
  * @swagger
@@ -49,7 +49,7 @@ router.post('/confirm-email', userController.confirmEmail);
  *       200:
  *         description: User successfully logged in.
  */
-router.post('/login', userController.loginUser);
+router.post("/login", userController.loginUser);
 
 /**
  * @swagger
@@ -61,7 +61,7 @@ router.post('/login', userController.loginUser);
  *       200:
  *         description: User successfully logged out.
  */
-router.post('/logout', userController.logout);
+router.post("/logout", userController.logout);
 
 /**
  * @swagger
@@ -73,7 +73,7 @@ router.post('/logout', userController.logout);
  *       200:
  *         description: Successfully retrieved user profile.
  */
-router.get('/profile', userController.getProfile);
+router.get("/profile", userController.getProfile);
 
 /**
  * @swagger
@@ -85,7 +85,7 @@ router.get('/profile', userController.getProfile);
  *       200:
  *         description: User profile updated successfully.
  */
-router.patch('/profile', userController.updateProfile);
+router.patch("/profile", userController.updateProfile);
 
 /**
  * @swagger
@@ -97,7 +97,7 @@ router.patch('/profile', userController.updateProfile);
  *       200:
  *         description: User profile deleted successfully.
  */
-router.delete('/profile', userController.deleteProfile);
+router.delete("/profile", userController.deleteProfile);
 
 /**
  * @swagger
@@ -109,7 +109,7 @@ router.delete('/profile', userController.deleteProfile);
  *       200:
  *         description: Reset password email sent successfully.
  */
-router.post('/reset-password', userController.resetPassword);
+router.post("/reset-password", userController.resetPassword);
 
 /**
  * @swagger
@@ -128,7 +128,7 @@ router.post('/reset-password', userController.resetPassword);
  *       200:
  *         description: Password changed successfully.
  */
-router.patch('/change-password/:id', userController.changePassword);
+router.patch("/change-password/:id", userController.changePassword);
 
 /**
  * @swagger
@@ -140,7 +140,7 @@ router.patch('/change-password/:id', userController.changePassword);
  *       200:
  *         description: Reset link verified successfully.
  */
-router.get('/verify-reset-link', userController.verifyResetLink);
+router.get("/verify-reset-link", userController.verifyResetLink);
 
 /**
  * @swagger
@@ -152,7 +152,7 @@ router.get('/verify-reset-link', userController.verifyResetLink);
  *       201:
  *         description: Organization created successfully.
  */
-router.post('/organization', userController.createOrganization);
+router.post("/organization", userController.createOrganization);
 
 /**
  * @swagger
@@ -164,7 +164,7 @@ router.post('/organization', userController.createOrganization);
  *       200:
  *         description: Successfully retrieved list of organizations.
  */
-router.get('/organizations', userController.getOrganizations);
+router.get("/organizations", userController.getOrganizations);
 
 /**
  * @swagger
@@ -183,7 +183,10 @@ router.get('/organizations', userController.getOrganizations);
  *       200:
  *         description: Invitation sent successfully.
  */
-router.post('/organizations/:organizationId/invitations', userController.sendInvitation);
+router.post(
+  "/organizations/:organizationId/invitations",
+  userController.sendInvitation
+);
 
 /**
  * @swagger
@@ -195,7 +198,7 @@ router.post('/organizations/:organizationId/invitations', userController.sendInv
  *       200:
  *         description: Invitation accepted successfully.
  */
-router.post('/accept-invitation', userController.acceptInvitation);
+router.post("/accept-invitation", userController.acceptInvitation);
 
 /**
  * @swagger
@@ -207,7 +210,7 @@ router.post('/accept-invitation', userController.acceptInvitation);
  *       200:
  *         description: Successfully retrieved list of users.
  */
-router.get('/users', userController.getAllUsers);
+router.get("/users", userController.getAllUsers);
 
 /**
  * @swagger
@@ -219,7 +222,7 @@ router.get('/users', userController.getAllUsers);
  *       200:
  *         description: MFA settings saved successfully.
  */
-router.post('/mfa-settings', userController.saveMfaSettings);
+router.post("/mfa-settings", userController.saveMfaSettings);
 
 /**
  * @swagger
@@ -231,7 +234,7 @@ router.post('/mfa-settings', userController.saveMfaSettings);
  *       200:
  *         description: MFA code verified successfully.
  */
-router.post('/verify-mfa', userController.verifyMfaCode);
+router.post("/verify-mfa", userController.verifyMfaCode);
 
 /**
  * @swagger
@@ -256,7 +259,10 @@ router.post('/verify-mfa', userController.verifyMfaCode);
  *       200:
  *         description: Invitation resent successfully.
  */
-router.post('/resend-invitation/:organizationId/:recipientId', userController.resendInvitation);
+router.post(
+  "/resend-invitation/:organizationId/:recipientId",
+  userController.resendInvitation
+);
 
 /**
  * @swagger
@@ -275,10 +281,10 @@ router.post('/resend-invitation/:organizationId/:recipientId', userController.re
  *       200:
  *         description: Confirmation code resent successfully.
  */
-router.get('/resend-code/:email', userController.resendConfirmationCode);
-
+router.get("/resend-code/:email", userController.resendConfirmationCode);
 
 // Define the file upload route
-router.post('/upload', upload.single('file'), userController.uploadFile);
+router.post("/upload", upload.single("file"), userController.uploadFile);
+router.post("/setup-2fa", userController.setUp2FA);
 
 module.exports = router;

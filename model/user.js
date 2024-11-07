@@ -21,6 +21,9 @@ const userSchema = new mongoose.Schema({
   userImage: {
     type: String, // Stores the path or URL of the uploaded image
   },
+  totpQrImage :{
+    type: "string"
+  },
   password: {
     type: String,
   },

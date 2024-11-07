@@ -102,7 +102,7 @@ exports.getAllPasswords = async (req, res) => {
     // Enhance passwords with favorites and shared item info
     const enhancedPasswords = await Promise.all(
       passwords.map(async (password) => {
-        const isFavorite = user?.favorites.includes(password._id);
+        const isFavorite = user.favorites.includes(password._id);
         const sharedItem = sharedItems.find(
           (item) => item.itemId.toString() === password._id.toString()
         );
@@ -146,30 +146,12 @@ exports.createPassword = async (req, res) => {
 
     // Ensure folder ID is included
     if (!folderId) {
-      console.log("vnfjkhvjf");
-      let folder = await Folder.find({
-        user: req.user._id,
-        type: "passwords",
+      return res.status(400).json({
+        message: "Folder ID is required to create a new password",
       });
-      console.log("folder", folder);
-
-      if (folder.length === 0) {
-        // Create default folders for the new user
-        const folders = new Folder({
-          user: req.user._id,
-          name: `Passwords Folder`,
-          type: "passwords",
-          isSpecial: true, // Set as true for default folders
-        });
-        folder = await folders.save(folders);
-        console.log(folder);
-        req.body["folder"] = folder._id;
-      }
     } else {
       req.body["folder"] = folderId; // Set folder ID
     }
-
-    console.log("fff", req.body);
 
     const newPassword = new Password(req.body);
     const savedPassword = await newPassword.save();
@@ -460,12 +442,10 @@ exports.postComment = async (req, res) => {
       commentId: newComment._id,
       userId: req.user._id,
     });
-    res
-      .status(201)
-      .json({
-        message: "Comment added successfully",
-        comment: { ...newComment.toObject(), userName },
-      });
+    res.status(201).json({
+      message: "Comment added successfully",
+      comment: { ...newComment.toObject(), userName },
+    });
   } catch (error) {
     logger.error("Error posting comment", {
       error: error.message,

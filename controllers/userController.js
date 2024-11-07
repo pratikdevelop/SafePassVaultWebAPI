@@ -6,16 +6,18 @@ const { v4: uuidv4 } = require("uuid");
 const bcrypt = require("bcryptjs");
 const Invitation = require("../model/Invitation");
 const planController = require("./plan-controller");
+const otplib = require("otplib");
+const qrcode = require("qrcode");
 // const twilio = require("twilio");
 // const twilioClient = twilio(
 //   process.env.TWILIO_ACCOUNT_SID,
 //   process.env.TWILIO_AUTH_TOKEN
 // );
-const { validateUserRegistration } = require('../utlis/validators'); // Import validation function
-const { sendEmail } = require('../utlis/email'); // Import email sender function
-const AWS = require('aws-sdk');
+const { validateUserRegistration } = require("../utlis/validators"); // Import validation function
+const { sendEmail } = require("../utlis/email"); // Import email sender function
+const AWS = require("aws-sdk");
 
-const Folder = require('../model/folder')
+const Folder = require("../model/folder");
 
 // Configure AWS S3
 const s3 = new AWS.S3({
@@ -87,19 +89,21 @@ exports.createUser = async (req, res) => {
     };
 
     // Send email
-    sendEmail(mailOptions).then((res) => {}).catch((err) => {
-      console.log(err);
-    });
+    sendEmail(mailOptions)
+      .then((res) => {})
+      .catch((err) => {
+        console.log(err);
+      });
 
     // Save user and organization to the database
     const user = await trialUser.save();
     await organization.save();
 
     // Define the default folder types
-    const folderTypes = ['passwords', 'notes', 'cards', 'proof', 'files'];
+    const folderTypes = ["passwords", "notes", "cards", "proof", "files"];
 
     // Create default folders for the new user
-    const folders = folderTypes.map(type => ({
+    const folders = folderTypes.map((type) => ({
       user: user._id,
       name: `${type.charAt(0).toUpperCase() + type.slice(1)} Folder`,
       type: type,
@@ -123,12 +127,10 @@ exports.createUser = async (req, res) => {
   }
 };
 
-
-
 exports.uploadFile = async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ message: 'No file uploaded' });
+      return res.status(400).json({ message: "No file uploaded" });
     }
 
     // S3 upload parameters
@@ -137,7 +139,7 @@ exports.uploadFile = async (req, res) => {
       Key: `uploads/${Date.now()}_${req.file.originalname}`,
       Body: req.file.buffer,
       ContentType: req.file.mimetype,
-      ACL: 'public-read',
+      ACL: "public-read",
     };
 
     // Upload file to S3
@@ -146,31 +148,33 @@ exports.uploadFile = async (req, res) => {
     // Save file URL to the user's document
     const user = await User.findById(req.user._id);
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json({ message: "User not found" });
     }
 
     user.userImage = data.Location; // Store the S3 URL in the userImage field
     await user.save();
 
     res.status(200).json({
-      message: 'File uploaded and user image updated successfully',
+      message: "File uploaded and user image updated successfully",
       url: data.Location,
       user,
     });
   } catch (error) {
-    console.error('Error uploading file:', error);
-    res.status(500).json({ message: 'File upload failed', error: error.message });
+    console.error("Error uploading file:", error);
+    res
+      .status(500)
+      .json({ message: "File upload failed", error: error.message });
   }
 };
 // Confirm email endpointre
 exports.confirmEmail = async (req, res) => {
   const { email, confirmationCode } = req.body;
-  
+
   try {
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(400).send({ message: "Invalid email" });
-    }    
+    }
     if (user.confirmationCode !== confirmationCode) {
       return res.status(400).send({ message: "Invalid confirmation code" });
     }
@@ -183,7 +187,6 @@ exports.confirmEmail = async (req, res) => {
     res.status(400).json({ message: "Error confirming email" });
   }
 };
-
 
 exports.getAllUsers = async (req, res) => {
   try {
@@ -621,59 +624,111 @@ exports.acceptInvitation = async (req, res) => {
 
 exports.saveMfaSettings = async (req, res) => {
   try {
-    const userId = req.user._id; // From auth middleware
+    const userId = req.user._id; // User ID from auth middleware
     const { mfaEnabled, mfaMethod, totpSecret } = req.body;
 
-    // Find the user and update MFA settings
+    // Find the user by ID
     const user = await User.findById(userId);
     if (!user) {
-      return res.status(404).send("User not found");
+      return res.status(404).json({ message: "User not found" });
     }
 
+    if (user.mfaMethod === mfaMethod) {
+      return res.status(400).json({ message: "MFA method already set" });
+    }
+    // Update user MFA settings
     user.mfaEnabled = mfaEnabled;
     user.mfaMethod = mfaMethod;
+
+    // If TOTP is selected as the MFA method, verify the provided TOTP secret
     if (mfaMethod === "totp") {
-      user.totpSecret = totpSecret; // Ensure this is securely handled
-    } else {
-      user.totpSecret = null; // Clear TOTP secret if not using TOTP
+      const isValid = otplib.authenticator.verify({
+        token: totpSecret,
+        secret: user.totpSecret,
+      });
+
+      if (!isValid) {
+        return res
+          .status(400)
+          .json({ success: false, message: "Invalid TOTP token" });
+      }
     }
 
+    // Save updated user settings
     await user.save();
-    res.status(200).json({ message: "MFA settings updated successfully" });
+
+    // Respond with success message
+    return res.status(200).json({
+      success: true,
+      message:
+        mfaMethod === "totp"
+          ? "2FA verified and settings updated successfully"
+          : "MFA settings updated successfully",
+    });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Server error" });
+    console.error("Error saving MFA settings:", error);
+    return res.status(500).json({ message: "Server error" });
   }
 };
 
 exports.verifyMfaCode = async (req, res) => {
-  const { email, mfaCode } = req.body;
+  const { email, mfaCode, method, totpCode } = req.body;
+
   try {
+    // Check for user existence
     const user = await User.findOne({ email });
     if (!user) {
-      return res.status(404).send({ message: "User not found" });
+      return res.status(404).json({ message: "User not found" });
     }
 
-    if (user.mfaCode !== mfaCode || user.mfaCodeExpiry < Date.now()) {
-      return res.status(400).send({ message: "Invalid or expired MFA code" });
-    }
+    // Handle SMS or email verification
+    if (method === "sms" || method === "email") {
+      if (user.mfaCode !== mfaCode || user.mfaCodeExpiry < Date.now()) {
+        return res.status(400).json({ message: "Invalid or expired MFA code" });
+      }
 
-    user.mfaCode = undefined; // Clear MFA code
-    user.mfaCodeExpiry = undefined; // Clear MFA code expiry
+      // Clear MFA code and expiry after successful verification
+      user.mfaCode = undefined;
+      user.mfaCodeExpiry = undefined;
+      await user.save();
 
-    await user.save();
-
-    const token = user.generateAuthToken();
-    res
-      .status(200)
-      .send({
+      // Generate authentication token
+      const token = user.generateAuthToken();
+      return res.status(200).json({
         token,
         message: "MFA code verified successfully",
         success: true,
       });
+    }
+
+    // Handle TOTP verification
+    if (method === "totp") {
+      const isValid = otplib.authenticator.verify({
+        token: totpCode,
+        secret: "EQCTECBSMYKCGKTS",
+      });
+
+      if (isValid) {
+        const token = user.generateAuthToken();
+        return res.status(200).json({
+          success: true,
+          token,
+          message: "2FA verified successfully",
+        });
+      } else {
+        return res
+          .status(400)
+          .json({ success: false, message: "Invalid token" });
+      }
+    }
+
+    // Handle invalid MFA method
+    return res.status(400).json({
+      message: "Invalid MFA verification method",
+    });
   } catch (error) {
-    console.error(error);
-    res.status(500).send({ message: "Error verifying MFA code" });
+    console.error("Error verifying MFA code:", error);
+    return res.status(500).json({ message: "Error verifying MFA code" });
   }
 };
 
@@ -786,5 +841,31 @@ exports.resendConfirmationCode = async (req, res) => {
         message: `Resend Email Confirmation code send to your mail`,
       });
     }
+  });
+};
+
+exports.setUp2FA = async (req, res) => {
+  const { email } = req.body;
+  const user = await User.findOne({ email });
+  if (!user) {
+    return res.status(404).send({ message: "User not found" });
+  }
+
+  // Generate a TOTP secret key for the user
+  const secret = otplib.authenticator.generateSecret();
+
+  // Generate a QR code that the user can scan with their authentication app
+  const otpauth = otplib.authenticator.keyuri(email, "SafePassVault", secret);
+  qrcode.toDataURL(otpauth, async (err, imageUrl) => {
+    if (err) {
+      return res
+        .status(500)
+        .send({ message: "Error generating QR code", success: false });
+    }
+    await user.updateOne(
+      { totpSecret: secret, totpQrImage: imageUrl },
+      { new: true }
+    );
+    res.json({ imageUrl, message: "QR Code generated successfully" }); // Send QR code URL to the frontend
   });
 };
