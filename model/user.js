@@ -83,6 +83,11 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  role:{
+    type:String,
+    enum:["admin","user"],
+    default:"admin"
+  }
 });
 
 // Password hashing middleware

@@ -8,15 +8,16 @@ const Invitation = require("../model/Invitation");
 const planController = require("./plan-controller");
 const otplib = require("otplib");
 const qrcode = require("qrcode");
-// const twilio = require("twilio");
-// const twilioClient = twilio(
-//   process.env.TWILIO_ACCOUNT_SID,
-//   process.env.TWILIO_AUTH_TOKEN
-// );
+const twilio = require("twilio");
+const jwt = require("jsonwebtoken");
+
+const client = twilio(
+  process.env.TWILIO_ACCOUNT_SID,
+  process.env.TWILIO_AUTH_TOKEN
+);
 const { validateUserRegistration } = require("../utlis/validators"); // Import validation function
 const { sendEmail } = require("../utlis/email"); // Import email sender function
 const AWS = require("aws-sdk");
-
 const Folder = require("../model/folder");
 
 // Configure AWS S3
@@ -78,14 +79,20 @@ exports.createUser = async (req, res) => {
     const mailOptions = {
       from: "safepassvault@gmail.com",
       to: email,
-      subject: "Verification Code Email",
+      subject: "Your SafePassVault Verification Code",
       html: `
-        <b>Hello ${name}</b>,
-        <p>Your verification code is: ${confirmationCode}</p>
-        <p>Please enter this code to complete your registration.</p>
-        <p>Thanks,</p>
-        <p>SafePassVault APP</p>
-      `,
+    <b>Hello ${name},</b>
+    <p>Thank you for registering with SafePassVault. To complete your registration, please use the following verification code:</p>
+    <p style="font-size: 18px; font-weight: bold; color: #333;">${confirmationCode}</p>
+    <p>Enter this code in the required field to confirm your account. This code will expire shortly, so please use it promptly.</p>
+    <p>If you did not request this code or have any questions, please contact our support team at 
+    <a href="mailto:safepassvault@gmail.com">safepassvault@gmail.com</a>.</p>
+    <p>Thanks,<br>The SafePassVault Team</p>
+    <hr>
+    <p style="font-size: 12px; color: #666;">
+      This is an automated message. Please do not reply to this email. For any assistance, reach out to our support team.
+    </p>
+  `,
     };
 
     // Send email
@@ -134,6 +141,8 @@ exports.uploadFile = async (req, res) => {
     }
 
     // S3 upload parameters
+    console.log(process.env);
+
     const params = {
       Bucket: process.env.S3_BUCKET_NAME,
       Key: `uploads/${Date.now()}_${req.file.originalname}`,
@@ -141,6 +150,8 @@ exports.uploadFile = async (req, res) => {
       ContentType: req.file.mimetype,
       ACL: "public-read",
     };
+
+    console.log("vfdkj", params);
 
     // Upload file to S3
     const data = await s3.upload(params).promise();
@@ -171,15 +182,18 @@ exports.confirmEmail = async (req, res) => {
   const { email, confirmationCode } = req.body;
 
   try {
-    const user = await User.findOne({ email });
+    const user = await User.findOneAndUpdate(
+      { email, confirmationCode },
+      { 
+        $set: { emailConfirmed: true, confirmationCode: null },
+      },
+      { new: true }  // Return the modified document
+    );
+
     if (!user) {
-      return res.status(400).send({ message: "Invalid email" });
+      return res.status(400).send({ message: "Invalid email or confirmation code" });
     }
-    if (user.confirmationCode !== confirmationCode) {
-      return res.status(400).send({ message: "Invalid confirmation code" });
-    }
-    user.emailConfirmed = true;
-    user.confirmationCode = null;
+
     const token = user.generateAuthToken();
     res.status(200).json({ message: "Email confirmed successfully", token });
   } catch (error) {
@@ -187,6 +201,7 @@ exports.confirmEmail = async (req, res) => {
     res.status(400).json({ message: "Error confirming email" });
   }
 };
+
 
 exports.getAllUsers = async (req, res) => {
   try {
@@ -305,23 +320,33 @@ exports.resetPassword = async (req, res) => {
     const encodedToken = Buffer.from(payload).toString("base64");
 
     // Create the reset link
-    const resetLink = `http://localhost:4200/auth/change-password?token=${encodedToken}`;
+    const resetLink = `${process.env.FRONTEND_URL}/auth/change-password?token=${encodedToken}`;
 
     // Configure the email options
     const mailOptions = {
-      from: "passwordmanagementapp@gmail.com",
+      from: "safePassVault@gmail.com",
       to: email,
-      subject: "Password Reset Link",
-      html: `<b>Hi ${user.name}</b>,
-             <p>We received a request to reset your password. Click the link below to reset your password:</p>
-             <p><a href="${resetLink}">Reset Password</a></p>
-             <p>This link is valid for 10 minutes.</p>
-             <p>If you did not request a password reset, please ignore this email.</p>
-             Thanks,<br>
-             Password Management APP`,
+      subject: "SafePassVault Password Reset Request",
+      html: `
+        <b>Hi ${user.name},</b>
+        <p>We received a request to reset your password for your SafePassVault account. To proceed with resetting your password, please click the link below:</p>
+        <p>
+          <a href="${resetLink}" style="font-size: 16px; color: #4CAF50; text-decoration: none;">
+            Reset Password
+          </a>
+        </p>
+        <p>This link is valid for 10 minutes. After that, you will need to request a new password reset link if needed.</p>
+        <p>If you did not request a password reset, you can safely ignore this email. Your password will remain unchanged.</p>
+        <p>Thank you,<br>The SafePassVault Team</p>
+        <hr>
+        <p style="font-size: 12px; color: #666;">
+          This is an automated message. Please do not reply to this email. For assistance, contact our support team at <a href="mailto:safePassVault@gmail.com">safePassVault@gmail.com</a>.
+        </p>
+      `,
     };
 
-    await transporter.sendMail(mailOptions);
+    await sendEmail(mailOptions);
+
     res.status(200).send({
       message: "Password reset link sent successfully",
       userId: user._id,
@@ -414,7 +439,7 @@ exports.sendInvitation = async (req, res) => {
     const recipient = new User({
       email,
       name,
-      phone,
+      phone:parseInt(phone),
       role: "user",
     });
 
@@ -441,18 +466,34 @@ exports.sendInvitation = async (req, res) => {
 
     // Send email invitation
     const mailOptions = {
-      from: "passwordmanagementapp@gmail.com",
+      from: "safePassVault@gmail.com",
       to: recipient.email,
-      subject: "Invitation to Join Organization",
-      html: `<b>Hi ${recipient.name}</b>,
-             <p>You have been invited to join the organization '${organization.name}' by ${sender.name}.</p>
-             <p>Please click the following link to accept the invitation:</p>
-             <a href="https://passwordmanagementrouter.netlify.app/auth/accept-invitation?id=${invitation._id}">Accept Invitation</a>
-             <p>Thanks,<br>Password Management APP</p>`,
+      subject: "You're Invited to Join ${organization.name} on SafePassVault",
+      html: `
+        <b>Hi ${recipient.name},</b>
+        <p>${sender.name} has invited you to join the organization <strong>'${organization.name}'</strong> on SafePassVault.</p>
+        <p>To accept this invitation and complete your account setup, please click the link below:</p>
+        <p>
+          <a href=${process.env.FRONTEND_URL}/auth/accept-invitation?id=${invitation._id}
+             style="font-size: 16px; color: #4CAF50; text-decoration: none;">
+             Accept Invitation
+          </a>
+        </p>
+        <p>If the above link doesn’t work, you can copy and paste the following URL into your browser:</p>
+        <p${process.env.FRONTEND_URL}/auth/accept-invitation?id=${invitation._id}</p>
+        <p>If you have any questions or did not expect this invitation, please reach out to our support team at 
+        <a href="mailto:safePassVault@gmail.com">safePassVault@gmail.com</a>.</p>
+        <p>Thanks,<br>The SafePassVault Team</p>
+        <hr>
+        <p style="font-size: 12px; color: #666;">
+          This is an automated message, please do not reply to this email. For any assistance, contact our support.
+        </p>
+      `,
     };
 
     // Send the email using the configured transporter
-    await transporter.sendMail(mailOptions);
+    await sendEmail(mailOptions);
+
     res.status(200).json({ message: "Invitation sent successfully" });
   } catch (error) {
     console.error(error);
@@ -491,17 +532,33 @@ exports.resendInvitation = async (req, res) => {
 
     // Resend the invitation email
     const mailOptions = {
-      from: "passwordmanagementapp@gmail.com",
+      from: "safePassVault@gmail.com",
       to: recipient.email,
-      subject: "Invitation to Join Organization",
-      html: `<b>Hi ${recipient.name}</b>,
-             <p>You have been invited to join the organization '${organization.name}' by ${sender.name}.</p>
-             <p>Please click the following link to accept the invitation:</p>
-             <a href="https://passwordmanagementrouter.netlify.app/auth/accept-invitation?id=${invitation._id}">Accept Invitation</a>
-             <p>Thanks,<br>Password Management APP</p>`,
+      subject: "You're Invited to Join ${organization.name} on SafePassVault",
+      html: `
+        <b>Hi ${recipient.name},</b>
+        <p>${sender.name} has invited you to join the organization <strong>'${organization.name}'</strong> on SafePassVault.</p>
+        <p>To accept this invitation and set up your account, please click the link below:</p>
+        <p>
+          <a href="${process.env.FRONTEND_URL}/auth/accept-invitation?id=${invitation._id}" 
+             style="font-size: 16px; color: #4CAF50; text-decoration: none;">
+             Accept Invitation
+          </a>
+        </p>
+        <p>If the link above does not work, you can copy and paste the following URL into your browser:</p>
+        <p>${process.env.FRONTEND_URL}/auth/accept-invitation?id=${invitation._id}</p>
+        <p>If you have any questions or did not expect this invitation, please contact our support team at 
+        <a href="mailto:safePassVault@gmail.com">safePassVault@gmail.com</a>.</p>
+        <p>Thank you,<br>The SafePassVault Team</p>
+        <hr>
+        <p style="font-size: 12px; color: #666;">
+          This is an automated message. Please do not reply to this email. For assistance, contact our support team.
+        </p>
+      `,
     };
 
-    await transporter.sendMail(mailOptions);
+    await sendEmail(mailOptions);
+
     res.status(200).json({ message: "Invitation resent successfully" });
   } catch (error) {
     console.error(error);
@@ -593,28 +650,27 @@ exports.acceptInvitation = async (req, res) => {
 
     // Send the verification code via email
     const mailOptions = {
-      from: "passwordmanagementapp@gmail.com",
+      from: "safePassVault@gmail.com",
       to: invitation.recipient.email,
-      subject: "Verification Code",
-      html: `<b>Hi ${invitation.recipient.name}</b>,
-             <p>Your invitation has been accepted.</p>
-             <p>Please use the following verification code to complete the process:</p>
-             <p><strong>${confirmationCode}</strong></p>
-             <p>Thanks,<br>Password Management APP</p>`,
+      subject: "Your SafePassVault Verification Code",
+      html: `
+        <b>Hi ${invitation.recipient.name},</b>
+        <p>Your invitation to SafePassVault has been accepted!</p>
+        <p>To complete the setup, please use the following verification code:</p>
+        <p style="font-size: 18px; font-weight: bold; color: #333;">${confirmationCode}</p>
+        <p>Enter this code in the required field to finish the process. This code will expire soon, so please use it promptly.</p>
+        <p>If you have any questions or did not expect this invitation, please reach out to our support team at <a href="mailto:safePassVault@gmail.com">safePassVault@gmail.com</a>.</p>
+        <p>Thank you,<br>SafePassVault Team</p>
+        <hr>
+        <p style="font-size: 12px; color: #666;">
+          This is an automated message, please do not reply to this email. For assistance, contact our support.
+        </p>
+      `,
     };
+    await sendEmail(mailOptions);
 
-    transporter.sendMail(mailOptions, (error, info) => {
-      if (error) {
-        console.error("Error sending verification code email:", error);
-        return res
-          .status(500)
-          .json({ message: "Error sending verification code email" });
-      } else {
-        res.status(200).json({
-          message:
-            "Invitation accepted and verification code sent successfully",
-        });
-      }
+    res.status(200).json({
+      message: "Invitation accepted and verification code sent successfully",
     });
   } catch (error) {
     console.error(error);
@@ -746,49 +802,59 @@ exports.loginUser = async (req, res) => {
       // Send MFA code based on user's MFA method
       if (user.mfaMethod === "email") {
         const mailOptions = {
-          from: "passwordmanagementapp@gmail.com",
+          from: "safePassVault@gmail.com",
           to: user.email,
-          subject: "Your MFA Code",
-          html: `<b>Hi ${user.name}</b>,
-                 <p>Your MFA code is: <strong>${mfaCode}</strong></p>
-                 <p>Please enter this code to complete your login.</p>
-                 <p>Thanks,<br>Password Management APP</p>`,
+          subject: "Your Multi-Factor Authentication (MFA) Code",
+          html: `
+            <b>Hi ${user.name},</b>
+            <p>We received a request to access your SafePassVault account. As an additional layer of security, please use the following Multi-Factor Authentication (MFA) code to proceed with your login:</p>
+            <p style="font-size: 18px; font-weight: bold; color: #333;">${mfaCode}</p>
+            <p>To complete your login, enter this code in the required field. Note that this code will expire shortly, so be sure to use it as soon as possible.</p>
+            <p>If you did not request this code or believe this message was sent in error, please contact our support team immediately at <a href="mailto:safePassVault@gmail.com">safePassVault@gmail.com</a>.</p>
+            <p>Thank you for helping us keep your account secure.</p>
+            <p>Best regards,<br>SafePassVault Team</p>
+            <hr>
+            <p style="font-size: 12px; color: #666;">
+              This is an automated message, please do not reply to this email. For any assistance, contact our support.
+            </p>
+          `,
         };
 
-        transporter.sendMail(mailOptions, (error) => {
-          if (error) {
-            return res
-              .status(500)
-              .send({ message: "Error sending MFA code via email" });
-          }
+        await sendEmail(mailOptions);
+
+        res.status(200).send({
+          message: "MFA code sent via email",
+          mfaRequired: true,
+          mfaMethod: user.mfaMethod,
+        });
+      }
+
+      // Sending MFA code via SMS
+      else if (user.mfaMethod === "sms") {
+        try {
+          const mfaCode = generateMFA(); // Assuming this is the method to generate the MFA code
+
+          // Sending SMS using Twilio
+          await client.messages.create({
+            body: `Your MFA code is: ${mfaCode}`,
+            from: process.env.TWILIO_PHONE_NUMBER, // From a Twilio phone number
+            to: user.phone, // To the user's phone number
+          });
+
+          // Send response after successfully sending the SMS
           res.status(200).send({
-            message: "MFA code sent via email",
+            message: "MFA code sent via SMS",
+            userId: user._id,
             mfaRequired: true,
             mfaMethod: user.mfaMethod,
           });
-        });
-      } else if (user.mfaMethod === "sms") {
-        //   {
-        //     body: `Your MFA code is: ${mfaCode}`,
-        //     from: process.env.TWILIO_PHONE_NUMBER,
-        //     to: user.phone,
-        //   },
-        //   (error) => {
-        //     if (error) {
-        //       return res
-        //         .status(500)
-        //         .send({ message: "Error sending MFA code via SMS" });
-        //     }
-        //     res
-        //       .status(200)
-        //       .send({
-        //         message: "MFA code sent via SMS",
-        //         userId: user._id,
-        //         mfaRequired: true,
-        //         mfaMethod: user.mfaMethod,
-        //       });
-        //   }
-        // );
+        } catch (error) {
+          console.error("Error sending MFA code via SMS:", error);
+          res.status(500).send({
+            message: "Error sending MFA code via SMS",
+            error: error.message,
+          });
+        }
       } else if (user.mfaMethod === "totp") {
         res.status(200).send({
           message: "TOTP MFA enabled",
@@ -819,28 +885,28 @@ exports.resendConfirmationCode = async (req, res) => {
   user.confirmationCode = confirmationCode;
 
   const mailOptions = {
-    from: "passwordmanagementapp@gmail.com",
+    from: "safePassVault@gmail.com",
     to: email,
-    subject: "Verification Code Email",
-    html: `<b>Hi ${user.name}</b>,
-      <p>Your verification code is: ${confirmationCode}</p>
-      <p>Please enter this code to complete your registration.</p>
-      <p>Thanks,</p>
-      <p>Password Management APP</p>`,
+    subject: "Your SafePassVault Verification Code",
+    html: `
+      <b>Hi ${user.name},</b>
+      <p>Thank you for registering with SafePassVault! To complete your registration, please use the following verification code:</p>
+      <p style="font-size: 18px; font-weight: bold; color: #333;">${confirmationCode}</p>
+      <p>Enter this code in the required field to confirm your account. This code will expire soon, so please use it promptly.</p>
+      <p>If you did not request this code or have any questions, feel free to reach out to us at 
+      <a href="mailto:safePassVault@gmail.com">safePassVault@gmail.com</a>.</p>
+      <p>Thank you,<br>The SafePassVault Team</p>
+      <hr>
+      <p style="font-size: 12px; color: #666;">
+        This is an automated message. Please do not reply to this email. For assistance, contact our support team.
+      </p>
+    `,
   };
 
-  transporter.sendMail(mailOptions, async (error, info) => {
-    if (error) {
-      console.log("Error occurred while sending email:", error);
-      return res
-        .status(500)
-        .send({ message: "Error occurred while sending email" });
-    } else {
-      await user.save();
-      res.status(201).send({
-        message: `Resend Email Confirmation code send to your mail`,
-      });
-    }
+  await sendEmail(mailOptions);
+  await user.save();
+  res.status(201).send({
+    message: `Resend Email Confirmation code send to your mail`,
   });
 };
 
@@ -869,3 +935,77 @@ exports.setUp2FA = async (req, res) => {
     res.json({ imageUrl, message: "QR Code generated successfully" }); // Send QR code URL to the frontend
   });
 };
+exports.sendMagicLink = async (req, res) => {
+  const { email } = req.body;
+  try {
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    // Generate a one-time token with JWT (valid for 10 minutes)
+    const token = jwt.sign({ email }, process.env.EMAIL_SECRET, {
+      expiresIn: "10m",
+    });
+
+    // Generate a magic link URL (your frontend will handle the redirect)
+    const magicLink = `${process.env.FRONTEND_URL}/auth/magic-link?token=${token}`;
+
+    // Send magic link via email
+    await sendEmail({
+      from: "safepassvault@gmail.com",
+      to: email,
+      subject: "Your SafePassVault Magic Link",
+      html: `<p>Click the link below to log in:</p><a href="${magicLink}">Login to SafePassVault</a>`,
+    });
+
+    res.status(200).json({ message: "Magic link sent to your email." });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Failed to send magic link." });
+  }
+};
+
+// Step 2: Verify the Magic Link
+exports.verifyMagicLink = async (req, res) => {
+  const { token } = req.query;
+  try {
+    // Verify token and extract email
+    const decoded = jwt.verify(token, process.env.EMAIL_SECRET);
+    const user = await User.findOne({ email: decoded.email });
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    // Generate a session token to authenticate the user in your app
+    const sessionToken = user.generateAuthToken();
+
+    res.status(200).json({ token: sessionToken, message: "Login successful" });
+  } catch (error) {
+    console.error(error);
+    res.status(400).json({ message: "Invalid or expired magic link" });
+  }
+};
+
+exports.resendMagicLink = async (req, res) => {
+  const { email } = req.body;
+  try {
+    // Validate user email exists
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).send({ message: "User not found" });
+    }
+
+    // Generate a new magic link token
+    const expiresIn = '15m';
+
+    // Generate a token with user ID as payload
+    const token = jwt.sign(
+      { userId: user._id },
+      process.env.EMAIL_SECRET, // Use an environment variable for the secret key
+      { expiresIn }
+    );
+    await sendMagicLinkEmail(email, token); // Use your email sending logic
+
+    res.status(200).send({ message: 'Magic link sent' });
+  } catch (error) {
+    console.error("Error sending magic link:", error);
+    res.status(500).send({ message: "Error resending magic link" });
+  }
+}

@@ -286,5 +286,9 @@ router.get("/resend-code/:email", userController.resendConfirmationCode);
 // Define the file upload route
 router.post("/upload", upload.single("file"), userController.uploadFile);
 router.post("/setup-2fa", userController.setUp2FA);
+// Route to request a magic link
+router.post('/request-magic-link', userController.sendMagicLink);
 
+// Route to verify magic link when the user clicks the link
+router.get('/magic-link', userController.verifyMagicLink);
 module.exports = router;

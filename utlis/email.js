@@ -15,4 +15,26 @@ const sendEmail = async (mailOptions) => {
   }
 };
 
+async function sendMagicLinkEmail(email, token) {
+  // Define the magic link (adjust the URL as per your frontend's domain and route)
+  const magicLinkUrl = `${process.env.FRONTEND_URL}/auth/magic-link?token=${token}&email=${encodeURIComponent(email)}`;
+
+  // Define the email options
+  const mailOptions = {
+    from: process.env.EMAIL_USER, // Sender address
+    to: email, // Recipient email
+    subject: 'Your Magic Link for Login',
+    html: `
+      <h1>Login with Magic Link</h1>
+      <p>Click the link below to login to your account:</p>
+      <a href="${magicLinkUrl}">Login Now</a>
+      <p>This link will expire in 15 minutes.</p>
+    `,
+  };
+
+  // Send the email
+  await transporter.sendMail(mailOptions);
+}
+
+
 module.exports = { sendEmail };
