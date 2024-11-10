@@ -24,8 +24,7 @@ exports.getAllPasswords = async (req, res) => {
       filter = "all",
     } = req.query;
 
-    const user = await User.findById(userId);
-
+    const user = await User.findById(userId);    
     // Set sort option
     const sortOption = { [sort]: order === "asc" ? 1 : -1 };
 
@@ -43,10 +42,7 @@ exports.getAllPasswords = async (req, res) => {
         : {};
 
     // Initialize the main query object
-    const query = {
-      ...searchQuery,
-    };
-
+    const query = searchQuery;
     // Apply folderId filter if provided
     if (folderId) query.folder = folderId;
 
@@ -73,7 +69,7 @@ exports.getAllPasswords = async (req, res) => {
 
       case "all":
       default:
-        query.$or = [{ created_by: userId }];
+        query.$or.push({ created_by: userId });
         sharedItems = await SharedItem.find({
           itemType: "password",
           "sharedWith.userId": userId,
@@ -84,7 +80,7 @@ exports.getAllPasswords = async (req, res) => {
         }
         break;
     }
-
+    
     // Execute the query
     const passwords = await Password.find(query)
       .populate("tags")
@@ -461,7 +457,6 @@ const getUserNameById = async (userId) => {
     const user = await User.findById(userId).select("name"); // Adjust the field as needed
     return user ? user.name : null; // Return user name or null if not found
   } catch (error) {
-    console.error("Error fetching user name:", error);
     throw error; // Handle error appropriately
   }
 };

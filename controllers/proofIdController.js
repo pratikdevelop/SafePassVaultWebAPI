@@ -9,7 +9,6 @@ exports.createProofId = async (req, res) => {
     await proofId.save();
     res.status(201).send(proofId);
   } catch (error) {
-    console.error("Error creating proof ID:", error);
     res.status(400).send(error);
   }
 };
@@ -23,7 +22,6 @@ exports.getAllProofIds = async (req, res) => {
     });
     res.status(200).json({proofIds});
   } catch (error) {
-    console.error("Error retrieving proof IDs:", error);
     res.status(500).send(error);
   }
 };
@@ -38,7 +36,6 @@ exports.getProofIdById = async (req, res) => {
     }
     res.send(proofId);
   } catch (error) {
-    console.error("Error retrieving proof ID:", error);
     res.status(500).send(error);
   }
 };
@@ -63,7 +60,6 @@ exports.updateProofId = async (req, res) => {
     await proofId.save();
     res.send(proofId);
   } catch (error) {
-    console.error("Error updating proof ID:", error);
     res.status(400).send(error);
   }
 };
@@ -77,7 +73,6 @@ exports.deleteProofId = async (req, res) => {
     }
     res.send(proofId);
   } catch (error) {
-    console.error("Error deleting proof ID:", error);
     res.status(500).send(error);
   }
 };

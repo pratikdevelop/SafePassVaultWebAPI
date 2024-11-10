@@ -26,7 +26,6 @@ const auth = (req, res, next) => {
     req.user = decoded;
     next();
   } catch (err) {
-    console.error(err); // Log the error for debugging
     return res.status(401).json({ message: 'Invalid token' });
   }
 };

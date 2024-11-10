@@ -127,7 +127,6 @@ exports.createUser = async (req, res) => {
     });
   } catch (error) {
     // Handle errors
-    console.error("Error creating trial user:", error);
     return res
       .status(400)
       .json({ message: `Error creating trial user: ${error.message}` });
@@ -171,7 +170,6 @@ exports.uploadFile = async (req, res) => {
       user,
     });
   } catch (error) {
-    console.error("Error uploading file:", error);
     res
       .status(500)
       .json({ message: "File upload failed", error: error.message });
@@ -197,7 +195,6 @@ exports.confirmEmail = async (req, res) => {
     const token = user.generateAuthToken();
     res.status(200).json({ message: "Email confirmed successfully", token });
   } catch (error) {
-    console.error(error);
     res.status(400).json({ message: "Error confirming email" });
   }
 };
@@ -219,7 +216,6 @@ exports.getAllUsers = async (req, res) => {
     // Send the invitations as the response
     res.status(200).json(invitations);
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Error retrieving invitations" });
   }
 };
@@ -235,7 +231,6 @@ exports.getProfile = async (req, res) => {
     try {
       planDetails = await planController.getPlanDetails(user._id);
     } catch (error) {
-      console.error("Error fetching plan details:", error);
       return res.status(500).send({ message: "Error fetching plan details" });
     }
 
@@ -244,7 +239,6 @@ exports.getProfile = async (req, res) => {
       planDetails, // Include plan details in the response
     });
   } catch (error) {
-    console.error(error);
     res.status(500).send({ message: "Error getting user profile", error });
   }
 };
@@ -281,7 +275,6 @@ exports.updateProfile = async (req, res) => {
     await user.save();
     res.status(200).send(user);
   } catch (error) {
-    console.error(error);
     res.status(400).send({ message: "Error updating user profile" });
   }
 };
@@ -295,7 +288,6 @@ exports.deleteProfile = async (req, res) => {
     }
     res.status(200).send({ message: "User deleted successfully" });
   } catch (error) {
-    console.error(error);
     res.status(500).send({ message: "Error deleting user account" });
   }
 };
@@ -352,7 +344,6 @@ exports.resetPassword = async (req, res) => {
       userId: user._id,
     });
   } catch (error) {
-    console.error(error);
     res.status(500).send({ message: "Internal server error" });
   }
 };
@@ -387,7 +378,6 @@ exports.verifyResetLink = async (req, res) => {
       message: "Reset link verified. You can now reset your password.",
     });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Error verifying reset link" });
   }
 };
@@ -401,7 +391,6 @@ exports.createOrganization = async (req, res) => {
     await organization.save();
     res.status(201).json({ message: "Organization created successfully" });
   } catch (err) {
-    console.error(err);
     res.status(500).json({ message: "Error creating organization" });
   }
 };
@@ -417,7 +406,6 @@ exports.getOrganizations = async (req, res) => {
       .exec();
     res.json(organizations);
   } catch (err) {
-    console.error(err);
     res.status(500).json({ message: "Error fetching organizations" });
   }
 };
@@ -496,7 +484,6 @@ exports.sendInvitation = async (req, res) => {
 
     res.status(200).json({ message: "Invitation sent successfully" });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Error sending invitation" });
   }
 };
@@ -561,7 +548,6 @@ exports.resendInvitation = async (req, res) => {
 
     res.status(200).json({ message: "Invitation resent successfully" });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Error resending invitation" });
   }
 };
@@ -580,7 +566,6 @@ exports.logout = async (req, res) => {
 
     res.status(200).send({ message: "Successfully logged out" });
   } catch (err) {
-    console.error("Error logging out user:", err);
     res.status(500).send({ message: "Internal server error" });
   }
 };
@@ -673,7 +658,6 @@ exports.acceptInvitation = async (req, res) => {
       message: "Invitation accepted and verification code sent successfully",
     });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Error accepting invitation" });
   }
 };
@@ -722,7 +706,6 @@ exports.saveMfaSettings = async (req, res) => {
           : "MFA settings updated successfully",
     });
   } catch (error) {
-    console.error("Error saving MFA settings:", error);
     return res.status(500).json({ message: "Server error" });
   }
 };
@@ -783,7 +766,6 @@ exports.verifyMfaCode = async (req, res) => {
       message: "Invalid MFA verification method",
     });
   } catch (error) {
-    console.error("Error verifying MFA code:", error);
     return res.status(500).json({ message: "Error verifying MFA code" });
   }
 };
@@ -849,7 +831,6 @@ exports.loginUser = async (req, res) => {
             mfaMethod: user.mfaMethod,
           });
         } catch (error) {
-          console.error("Error sending MFA code via SMS:", error);
           res.status(500).send({
             message: "Error sending MFA code via SMS",
             error: error.message,
@@ -959,7 +940,6 @@ exports.sendMagicLink = async (req, res) => {
 
     res.status(200).json({ message: "Magic link sent to your email." });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Failed to send magic link." });
   }
 };
@@ -978,7 +958,6 @@ exports.verifyMagicLink = async (req, res) => {
 
     res.status(200).json({ token: sessionToken, message: "Login successful" });
   } catch (error) {
-    console.error(error);
     res.status(400).json({ message: "Invalid or expired magic link" });
   }
 };
@@ -1005,7 +984,6 @@ exports.resendMagicLink = async (req, res) => {
 
     res.status(200).send({ message: 'Magic link sent' });
   } catch (error) {
-    console.error("Error sending magic link:", error);
     res.status(500).send({ message: "Error resending magic link" });
   }
 }

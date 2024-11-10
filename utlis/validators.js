@@ -38,12 +38,9 @@ const validateUserRegistration = async (data) => {
   const phoneRegex = /^\d{10}$/;
   if (phone && !phoneRegex.test(phone)) {
     errors.phone = 'Phone number must be 10 digits.';
-  }
-  console.log('ff', password);
-  
+  }  
   // Password strength validation
   const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_])[A-Za-z\d\W_]{8,}$/;
-  console.log('check',passwordRegex.test(password))
   if (password && !passwordRegex.test(password)) {
     errors.password =
       'Password must be at least 8 characters long and contain numbers, letters, and special characters.';

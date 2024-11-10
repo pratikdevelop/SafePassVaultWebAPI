@@ -11,12 +11,18 @@ exports.createNote = async (req, res) => {
   try {
     req.body.userId = req.user._id;
     req.body.modifiedby = req.user._id;
-
+    const {folderId} = req.body;
+    if (!folderId) {
+      return res.status(400).json({
+        message: "Folder ID is required to create a new password",
+      });
+    } else {
+      req.body["folder"] = folderId; // Set folder ID
+    }
     const newNote = new Note(req.body);
     await newNote.save();
     res.status(201).send(newNote);
   } catch (error) {
-    console.error("Error creating note:", error);
     res.status(400).send(error);
   }
 };
@@ -137,7 +143,6 @@ exports.getAllNotes = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error retrieving notes:", error);
     res.status(500).json({ message: "Error fetching notes" });
   }
 };
@@ -152,7 +157,6 @@ exports.getNoteById = async (req, res) => {
     }
     res.send(note);
   } catch (error) {
-    console.error("Error retrieving note:", error);
     res.status(500).send(error);
   }
 };
@@ -186,7 +190,6 @@ exports.updateNote = async (req, res) => {
     await note.save();
     res.send(note);
   } catch (error) {
-    console.error("Error updating note:", error);
     res.status(400).send({ error: "Error updating note!" });
   }
 };
@@ -201,7 +204,6 @@ exports.deleteNote = async (req, res) => {
     }
     res.send(note);
   } catch (error) {
-    console.error("Error deleting note:", error);
     res.status(500).send(error);
   }
 };
@@ -235,7 +237,6 @@ exports.toggleFavorite = async (req, res) => {
     await user.save();
     return res.status(200).json({ message: "Favorites updated successfully" });
   } catch (err) {
-    console.error(err);
     res.status(500).json({ message: "Error updating favorites" });
   }
 };
@@ -257,7 +258,6 @@ exports.exportAllNotesAsCsv = async (req, res) => {
     res.header("Content-Disposition", "attachment; filename=passwords.csv");
     res.send(csv);
   } catch (error) {
-    console.error(error);
     res.status(500).send(error);
   }
 };
@@ -362,7 +362,6 @@ const getUserNameById = async (userId) => {
     const user = await User.findById(userId).select("name"); // Adjust the field as needed
     return user ? user.name : null; // Return user name or null if not found
   } catch (error) {
-    console.error("Error fetching user name:", error);
     throw error; // Handle error appropriately
   }
 };

@@ -13,7 +13,6 @@ exports.createFolder = async (req, res) => {
     await folder.save();
     res.status(201).json(folder);
   } catch (error) {
-    console.error("Error creating folder: ", error);
     res.status(500).json({ error: "Internal server error" });
   }
 };
@@ -24,7 +23,6 @@ exports.getUserFolders = async (req, res) => {
     const folders = await Folder.findByUser(req.user.id);
     res.status(200).json(folders);
   } catch (error) {
-    console.error("Error fetching user folders: ", error);
     res.status(500).json({ error: "Internal server error" });
   }
 };
@@ -41,7 +39,6 @@ exports.getFolderById = async (req, res) => {
     }
     res.status(200).json(folder);
   } catch (error) {
-    console.error("Error fetching folder: ", error);
     res.status(500).json({ error: "Internal server error" });
   }
 };
@@ -66,7 +63,6 @@ exports.updateFolder = async (req, res) => {
     await folder.save();
     res.status(200).json(folder);
   } catch (error) {
-    console.error("Error updating folder: ", error);
     res.status(500).json({ error: "Internal server error" });
   }
 };
@@ -85,7 +81,6 @@ exports.deleteFolder = async (req, res) => {
     await folder.remove();
     res.status(204).send();
   } catch (error) {
-    console.error("Error deleting folder: ", error);
     res.status(500).json({ error: "Internal server error" });
   }
 };
@@ -113,7 +108,6 @@ exports.getFoldersByType = async (req, res) => {
 
     res.status(200).json(folders);
   } catch (error) {
-    console.error("Error fetching folders by type: ", error);
     res.status(500).json({ error: "Internal server error" });
   }
 };

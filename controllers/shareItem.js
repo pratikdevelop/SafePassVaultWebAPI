@@ -66,7 +66,6 @@ exports.shareItem = async (req, res) => {
 
     res.status(200).json({ message: `${itemType.charAt(0).toUpperCase() + itemType.slice(1)} shared successfully` });
   } catch (err) {
-    console.error(err);
     res.status(500).json({ message: 'Error sharing item' });
   }
 };
@@ -115,7 +114,6 @@ exports.shareItem = async (req, res) => {
   
       res.status(200).json(items);
     } catch (err) {
-      console.error(err);
       res.status(500).json({ message: `Error fetching ${itemType}s` });
     }
   };

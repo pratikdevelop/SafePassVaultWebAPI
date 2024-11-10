@@ -50,7 +50,6 @@ module.exports = {
   
       res.status(201).json({ message: 'File uploaded successfully', file: newFile });
     } catch (error) {
-      console.error('Upload error:', error); // Log error for debugging
       res.status(500).json({ message: 'Error uploading file', error: error.message });
     }
   },
@@ -193,7 +192,6 @@ module.exports = {
 
       res.status(200).json(folders);
     } catch (error) {
-      console.error('Error searching folders:', error);
       res.status(500).json({ message: 'Error searching folders', error: error.message });
     }
   },
@@ -239,7 +237,6 @@ module.exports = {
 
       res.status(200).json(invitations);
     } catch (error) {
-      console.error('Error searching invitations:', error);
       res.status(500).json({ message: 'Error searching invitations', error: error.message });
     }
   }

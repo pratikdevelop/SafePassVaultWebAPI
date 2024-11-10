@@ -30,7 +30,6 @@ exports.getPlans = async (req, res) => {
     // Send the formatted plan data as a JSON response
     res.status(200).json({ plans: formattedPlans });
   } catch (error) {
-    console.error('Error fetching plans from database:', error);
     // Send an error response with a status code and message
     res.status(500).json({ message: 'Unable to fetch plans.', error: error.message });
   }
@@ -68,7 +67,6 @@ exports.createSubscriptions =  async(req, res) => {
     //   res.status(400).json({ error: 'Order not completed' });
     // }
   } catch (error) {
-    console.error('Error fetching PayPal order:', error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -86,7 +84,6 @@ exports.getPlanDetails = async (planId) => {
     const plan = await Subscription.findOne({userId: planId})    
     return plan;
   } catch (error) {
-    console.error('Error fetching plan details:', error);
     throw error;
   }
 };
