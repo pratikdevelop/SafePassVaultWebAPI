@@ -60,6 +60,7 @@ exports.getAllNotes = async (req, res) => {
 
     // Initialize the main query object
     const query = { userId, ...searchQuery };
+    if (folderId) query.folder = folderId;
 
     // Apply filter-specific logic
     let sharedItems = [];

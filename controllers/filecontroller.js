@@ -6,8 +6,11 @@ const Folder = require('../model/folder')
 const Invitation = require('../model/Invitation'); // Adjust the path as needed
 const User = require('../model/user');
 const AWS = require('aws-sdk');
-const { constants } = require('crypto');
-
+const s3 = new AWS.S3({
+  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  region: process.env.AWS_REGION,
+});
 module.exports = {
 
   uploadFile : async (req, res) => {
@@ -24,7 +27,7 @@ module.exports = {
   
       // Upload file to S3
       const params = {
-        Bucket: 'file-storage',
+        Bucket: process.env.S3_BUCKET_NAME_FILE_STORAGE,
         Key: originalname,
         Body: fileStream,
       };

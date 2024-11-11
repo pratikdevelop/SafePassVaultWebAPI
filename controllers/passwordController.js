@@ -40,7 +40,8 @@ exports.getAllPasswords = async (req, res) => {
         : {};
 
     // Initialize the main query object
-    const query = searchQuery;
+    let query = {
+      ...searchQuery};
     // Apply folderId filter if provided
     if (folderId) query.folder = folderId;
 
@@ -67,6 +68,12 @@ exports.getAllPasswords = async (req, res) => {
 
       case "all":
       default:
+        
+        if (!query?.$or) {
+          query = {
+            $or:[]
+          }
+        }
         query.$or.push({ created_by: userId });
         sharedItems = await SharedItem.find({
           itemType: "password",
