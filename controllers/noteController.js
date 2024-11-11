@@ -4,14 +4,14 @@ const { parse } = require("json2csv");
 const SharedItem = require("../model/shareItem"); // Assuming this is your SharedItem model
 const Tag = require("../model/tag");
 const Comment = require("../model/comment");
-const logger = require("../logger"); // Adjust the path as needed
+const logger = require("../config/logger"); // Adjust the path as needed
 
 // Create a new note
 exports.createNote = async (req, res) => {
   try {
     req.body.userId = req.user._id;
     req.body.modifiedby = req.user._id;
-    const {folderId} = req.body;
+    const { folderId } = req.body;
     if (!folderId) {
       return res.status(400).json({
         message: "Folder ID is required to create a new password",
@@ -50,12 +50,12 @@ exports.getAllNotes = async (req, res) => {
     const searchQuery =
       search && search !== "undefined"
         ? {
-            $or: [
-              { title: { $regex: search, $options: "i" } },
-              { content: { $regex: search, $options: "i" } },
-              { description: { $regex: search, $options: "i" } },
-            ],
-          }
+          $or: [
+            { title: { $regex: search, $options: "i" } },
+            { content: { $regex: search, $options: "i" } },
+            { description: { $regex: search, $options: "i" } },
+          ],
+        }
         : {};
 
     // Initialize the main query object
@@ -124,8 +124,8 @@ exports.getAllNotes = async (req, res) => {
         isFavorite,
         sharedItem: sharedItem
           ? sharedItem.sharedWith.find(
-              (sw) => sw.userId.toString() === userId.toString()
-            )
+            (sw) => sw.userId.toString() === userId.toString()
+          )
           : null,
       };
     });

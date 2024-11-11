@@ -1,6 +1,6 @@
 // server.js
 require("dotenv").config()
-require("./model/conn")
+require("./config/conn")
 
 const express = require("express");
 const app = express();
@@ -18,12 +18,11 @@ const planRoutes = require('./routes/plan-routes')
 const logRoutes = require('./routes/logRoutes')
 const auth = require("./middleware")
 const swaggerUi = require('swagger-ui-express');
-const swaggerSpec = require('./swagger')
+const swaggerSpec = require('./config/swagger')
 const Plan = require('./model/plan')
-const User = require('./model/user')
 const folderRoutes = require('./routes/folderRoutes'); // Adjust the path as necessary
 const port = process.env.PORT || 3000;
-app.get("/",  (req, res) => {
+app.get("/", (req, res) => {
   res.send("Hello World");
 });
 app.use(cors());
@@ -34,13 +33,13 @@ app.use('/api/swagger', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use("/api/auth", users);
 app.use("/api/passwords", password);
 app.use("/api/tags", tagRoutes);
-app.use("/api/notes",noteController);
-app.use("/api/proofIds",proofIdsController);
-app.use("/api/cards",cardControlller);
+app.use("/api/notes", noteController);
+app.use("/api/proofIds", proofIdsController);
+app.use("/api/cards", cardControlller);
 app.use('/api/security-questions', securityQuestionRoutes);
 app.use('/api/files', fileRoutes);
 app.use('/api/share', shareItemRoutes);
-app.use('/api/plans',planRoutes);
+app.use('/api/plans', planRoutes);
 app.use('/api/logs', logRoutes)
 
 app.listen(port, () => {

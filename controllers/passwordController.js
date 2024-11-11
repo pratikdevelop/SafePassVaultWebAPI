@@ -6,9 +6,7 @@ const SharedItem = require("../model/shareItem");
 const { parse } = require("json2csv");
 const Tag = require("../model/tag");
 const Comment = require("../model/comment");
-const logger = require("../logger"); // Adjust the path as needed
-const shareItem = require("../model/shareItem");
-const Folder = require("../model/folder");
+const logger = require("../config/logger"); // Adjust the path as needed
 
 // Get all passwords with pagination, sorting, searching, and folder association
 exports.getAllPasswords = async (req, res) => {
@@ -24,7 +22,7 @@ exports.getAllPasswords = async (req, res) => {
       filter = "all",
     } = req.query;
 
-    const user = await User.findById(userId);    
+    const user = await User.findById(userId);
     // Set sort option
     const sortOption = { [sort]: order === "asc" ? 1 : -1 };
 
@@ -32,13 +30,13 @@ exports.getAllPasswords = async (req, res) => {
     const searchQuery =
       search && search !== "undefined"
         ? {
-            $or: [
-              { name: { $regex: search, $options: "i" } },
-              { website: { $regex: search, $options: "i" } },
-              { description: { $regex: search, $options: "i" } },
-              { username: { $regex: search, $options: "i" } },
-            ],
-          }
+          $or: [
+            { name: { $regex: search, $options: "i" } },
+            { website: { $regex: search, $options: "i" } },
+            { description: { $regex: search, $options: "i" } },
+            { username: { $regex: search, $options: "i" } },
+          ],
+        }
         : {};
 
     // Initialize the main query object
@@ -80,7 +78,7 @@ exports.getAllPasswords = async (req, res) => {
         }
         break;
     }
-    
+
     // Execute the query
     const passwords = await Password.find(query)
       .populate("tags")
@@ -108,8 +106,8 @@ exports.getAllPasswords = async (req, res) => {
           isFavorite,
           sharedItem: sharedItem
             ? sharedItem.sharedWith.find(
-                (sw) => sw.userId.toString() === userId.toString()
-              )
+              (sw) => sw.userId.toString() === userId.toString()
+            )
             : null,
         };
       })

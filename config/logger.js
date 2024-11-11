@@ -2,7 +2,7 @@ const winston = require('winston');
 require('winston-mongodb');
 
 // Create a logger
-const mongoURI =`mongodb+srv://${process.env.MONGO_DB_USERNAME}:${process.env.MONGO_DB_PASSWORD}@cluster0.nt431ty.mongodb.net/password-manager?retryWrites=true&w=majority`;
+const mongoURI = process.env.MONGOURL;
 
 const logger = winston.createLogger({
     level: 'info', // Default log level
