@@ -744,7 +744,7 @@ exports.verifyMfaCode = async (req, res) => {
     if (method === "totp") {
       const isValid = otplib.authenticator.verify({
         token: totpCode,
-        secret: "EQCTECBSMYKCGKTS",
+        secret: user.totpSecret,
       });
 
       if (isValid) {
