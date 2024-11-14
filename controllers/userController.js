@@ -10,6 +10,7 @@ const otplib = require("otplib");
 const qrcode = require("qrcode");
 const twilio = require("twilio");
 const jwt = require("jsonwebtoken");
+const bip39 = require('bip39');
 
 const client = twilio(
   process.env.TWILIO_ACCOUNT_SID,
@@ -26,6 +27,7 @@ const s3 = new AWS.S3({
   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
   region: process.env.AWS_REGION,
 });
+
 
 exports.createUser = async (req, res) => {
   try {
@@ -48,7 +50,17 @@ exports.createUser = async (req, res) => {
       state,
       postalCode,
       country,
+      publicKey, // Public key from the client (assumed passed in request body)
+      recoveryPhrase, // Encrypted recovery phrase from the client (in Base64 format)
     } = req.body;
+
+    // Check if publicKey and recoveryPhrase are provided (critical for registration)
+    if (!publicKey) {
+      return res.status(400).json({ message: "Public key is required for registration." });
+    }
+    if (!recoveryPhrase) {
+      return res.status(400).json({ message: "Recovery phrase is required for registration." });
+    }
 
     // Create new user and organization instances
     const trialUser = new User({
@@ -61,6 +73,8 @@ exports.createUser = async (req, res) => {
       state,
       postalCode,
       country,
+      publicKey, // Store the public key with the user
+      recoveryPhrase, // Store the encrypted recovery phrase as-is
     });
 
     const organization = new Organization({
@@ -81,23 +95,23 @@ exports.createUser = async (req, res) => {
       to: email,
       subject: "Your SafePassVault Verification Code",
       html: `
-    <b>Hello ${name},</b>
-    <p>Thank you for registering with SafePassVault. To complete your registration, please use the following verification code:</p>
-    <p style="font-size: 18px; font-weight: bold; color: #333;">${confirmationCode}</p>
-    <p>Enter this code in the required field to confirm your account. This code will expire shortly, so please use it promptly.</p>
-    <p>If you did not request this code or have any questions, please contact our support team at 
-    <a href="mailto:safepassvault@gmail.com">safepassvault@gmail.com</a>.</p>
-    <p>Thanks,<br>The SafePassVault Team</p>
-    <hr>
-    <p style="font-size: 12px; color: #666;">
-      This is an automated message. Please do not reply to this email. For any assistance, reach out to our support team.
-    </p>
-  `,
+        <b>Hello ${name},</b>
+        <p>Thank you for registering with SafePassVault. To complete your registration, please use the following verification code:</p>
+        <p style="font-size: 18px; font-weight: bold; color: #333;">${confirmationCode}</p>
+        <p>Enter this code in the required field to confirm your account. This code will expire shortly, so please use it promptly.</p>
+        <p>If you did not request this code or have any questions, please contact our support team at 
+        <a href="mailto:safepassvault@gmail.com">safepassvault@gmail.com</a>.</p>
+        <p>Thanks,<br>The SafePassVault Team</p>
+        <hr>
+        <p style="font-size: 12px; color: #666;">
+          This is an automated message. Please do not reply to this email. For any assistance, reach out to our support team.
+        </p>
+      `,
     };
 
     // Send email
     sendEmail(mailOptions)
-      .then((res) => {})
+      .then(() => { })
       .catch((err) => {
         console.log(err);
       });
@@ -124,6 +138,7 @@ exports.createUser = async (req, res) => {
     return res.status(201).json({
       userId: user._id,
       message: `User created successfully. Welcome email sent to ${email}`,
+      recoveryPhrase, // Do NOT send plaintext recovery phrase in a real app
     });
   } catch (error) {
     // Handle errors
@@ -143,14 +158,13 @@ exports.uploadFile = async (req, res) => {
     console.log(process.env);
 
     const params = {
-      Bucket: process.env.S3_BUCKET_NAME,
+      Bucket: process.env.S3_BUCKET_NAME_FILE_STORAGE,
       Key: `uploads/${Date.now()}_${req.file.originalname}`,
       Body: req.file.buffer,
       ContentType: req.file.mimetype,
       ACL: "public-read",
     };
 
-    console.log("vfdkj", params);
 
     // Upload file to S3
     const data = await s3.upload(params).promise();
@@ -182,7 +196,7 @@ exports.confirmEmail = async (req, res) => {
   try {
     const user = await User.findOneAndUpdate(
       { email, confirmationCode },
-      { 
+      {
         $set: { emailConfirmed: true, confirmationCode: null },
       },
       { new: true }  // Return the modified document
@@ -427,7 +441,7 @@ exports.sendInvitation = async (req, res) => {
     const recipient = new User({
       email,
       name,
-      phone:parseInt(phone),
+      phone: parseInt(phone),
       role: "user",
     });
 
@@ -986,4 +1000,105 @@ exports.resendMagicLink = async (req, res) => {
   } catch (error) {
     res.status(500).send({ message: "Error resending magic link" });
   }
+}
+
+exports.saveSSOSettings = async (req, res) => {
+  const {
+    provider, loginUrl, redirectUrl, clientId, clientSecret, tenantId, secretExpiry, scopes, additionalSettings
+  } = req.body;
+
+  try {
+    const ssoSettings = await SSOSettings.findOneAndUpdate(
+      { provider },  // Find by provider type to allow updates
+      {
+        provider,
+        loginUrl,
+        redirectUrl,
+        clientId,
+        clientSecret,
+        tenantId,
+        secretExpiry,
+        scopes,
+        additionalSettings
+      },
+      { new: true, upsert: true } // Create if doesn't exist, otherwise update
+    );
+
+    res.status(200).json({ message: `${provider} SSO settings saved successfully`, ssoSettings });
+  } catch (error) {
+    console.error(`Error saving ${provider} SSO settings:`, error);
+    res.status(500).json({ message: `Failed to save ${provider} SSO settings`, error });
+  }
+};
+
+// Account Recovery Route (for example)
+exports.recoverAccount = async (req, res) => {
+  const { email, recoveryPhrase } = req.body; // User provides their email and recovery phrase
+
+  try {
+    // Step 1: Find the user in the database
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Step 2: Retrieve the encrypted recovery phrase and IV from the database
+    const { encryptedRecoveryPhrase, iv, encryptedKey } = user;  // Assuming these are stored in the user document
+    const key = await decryptEncryptionKey(encryptedKey);  // You'll need to implement decryptEncryptionKey
+
+    // Step 3: Decrypt the stored recovery phrase
+    const decryptedRecoveryPhrase = await decryptRecoveryPhrase(encryptedRecoveryPhrase, iv, key);
+
+    // Step 4: Check if the provided recovery phrase matches the decrypted one
+    if (recoveryPhrase === decryptedRecoveryPhrase) {
+      // The user has successfully recovered their account (you can perform additional steps, like resetting the password)
+      res.status(200).json({ message: "Account recovery successful" });
+    } else {
+      res.status(400).json({ message: "Invalid recovery phrase" });
+    }
+  } catch (err) {
+    res.status(500).json({ message: "Error recovering account: " + err.message });
+  }
+};
+
+// Decrypt recovery phrase using AES-GCM
+async function decryptRecoveryPhrase(encryptedBase64, iv, key) {
+  // Step 1: Decode the Base64 encoded string into an ArrayBuffer
+  const encryptedBuffer = base64ToArrayBuffer(encryptedBase64);
+
+  // Step 2: Decrypt the data using AES-GCM
+  const decryptedData = await crypto.subtle.decrypt(
+    {
+      name: "AES-GCM",
+      iv: iv,  // Initialization vector used in encryption
+    },
+    key,
+    encryptedBuffer
+  );
+
+  // Step 3: Convert the decrypted ArrayBuffer back into a string
+  const decoder = new TextDecoder();
+  return decoder.decode(decryptedData);
+}
+
+// Helper function to convert Base64 to ArrayBuffer
+function base64ToArrayBuffer(base64) {
+  const binaryString = atob(base64);
+  const length = binaryString.length;
+  const buffer = new ArrayBuffer(length);
+  const view = new Uint8Array(buffer);
+  for (let i = 0; i < length; i++) {
+    view[i] = binaryString.charCodeAt(i);
+  }
+  return buffer;
+}
+
+// Placeholder for decrypting the encryption key
+async function decryptEncryptionKey(encryptedKey) {
+  // This function should decrypt the encryption key stored in the database
+  // You can use a similar decryption process or a secure key management service (KMS)
+
+  // For example:
+  const decryptedKey = await someKeyManagementService.decrypt(encryptedKey);
+  return decryptedKey;
 }

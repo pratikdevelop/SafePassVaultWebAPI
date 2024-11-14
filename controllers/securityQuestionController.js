@@ -4,7 +4,7 @@ const SecurityQuestion = require('../model/securityQuestion');
 exports.addOrUpdateSecurityQuestions = async (req, res) => {
   try {
     const userId = req.user._id;
-    let securityQuestions =req.body; // Expecting an array of security questions and answers
+    let securityQuestions = req.body; // Expecting an array of security questions and answers
 
     if (!Array.isArray(securityQuestions) || securityQuestions.length === 0) {
       securityQuestions = [
@@ -30,8 +30,8 @@ exports.addOrUpdateSecurityQuestions = async (req, res) => {
 exports.getSecurityQuestions = async (req, res) => {
   try {
     const userId = req.user._id;
-    const questions = await SecurityQuestion.find({ userId: userId });
-    res.status(200).json(questions);
+    const questions = await SecurityQuestion.findOne({ userId: userId });
+    res.status(200).json({ questions: questions });
   } catch (error) {
     res.status(400).json({ error: error.message });
   }

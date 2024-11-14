@@ -1,6 +1,10 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const speakeasy = require("speakeasy"); // For TOTP generation
+const crypto = require("crypto"); // For random generation
+const bip39 = require("bip39"); // For recovery phrase (mnemonic) generation
+
 // Main User Schema
 const userSchema = new mongoose.Schema({
   name: {
@@ -21,8 +25,8 @@ const userSchema = new mongoose.Schema({
   userImage: {
     type: String, // Stores the path or URL of the uploaded image
   },
-  totpQrImage :{
-    type: "string"
+  totpQrImage: {
+    type: String,
   },
   password: {
     type: String,
@@ -83,11 +87,20 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
-  role:{
-    type:String,
-    enum:["admin","user"],
-    default:"admin"
-  }
+  role: {
+    type: String,
+    enum: ["admin", "user"],
+    default: "admin",
+  },
+  // New Fields for Private Key Authentication
+  publicKey: {
+    type: String,
+    required: true, // The public key for authentication
+  },
+  recoveryPhrase: {
+    type: String,
+    required: true, // Store the recovery phrase (in plain text or encrypted)
+  },
 });
 
 // Password hashing middleware
@@ -110,6 +123,17 @@ userSchema.pre("save", async function (next) {
   next();
 });
 
+
+const generateEncryptionKey = async () => {
+  return await crypto.subtle.generateKey(
+    {
+      name: "AES-GCM", // Using AES-GCM encryption algorithm
+      length: 256, // 256-bit key length
+    },
+    true, // The key is extractable, so we can use it for encryption/decryption
+    ["encrypt", "decrypt"] // The key can be used for encryption and decryption
+  );
+}
 // Generate auth token
 userSchema.methods.generateAuthToken = function () {
   const token = jwt.sign({ _id: this._id }, process.env.SECRET_KEY);
@@ -156,4 +180,26 @@ userSchema.methods.verifyTotpCode = function (token) {
   });
 };
 
+// Method to generate recovery phrase (mnemonic)
+userSchema.methods.encryptRecoveryPhrase = function () {
+  const cipher = crypto.createCipher('aes-256-cbc', encryptionKey);
+  let encrypted = cipher.update(this.recoveryPhrase, 'utf8', 'hex');
+  encrypted += cipher.final('hex');
+  this.recoveryPhrase = encrypted; // Store the encrypted recovery phrase
+};
+
+// Decrypt the recovery phrase when retrieving it
+userSchema.methods.decryptRecoveryPhrase = function () {
+  const decipher = crypto.createDecipher('aes-256-cbc', encryptionKey);
+  let decrypted = decipher.update(this.recoveryPhrase, 'hex', 'utf8');
+  decrypted += decipher.final('utf8');
+  return decrypted; // Return the decrypted recovery phrase
+};
+
+// Example: Method to generate and save recovery phrase (mnemonic)
+userSchema.methods.generateRecoveryPhrase = function () {
+  const recoveryPhrase = bip39.generateMnemonic(); // Generate a 12-word mnemonic
+  this.recoveryPhrase = recoveryPhrase; // Store the mnemonic (will be encrypted when saved)
+  return recoveryPhrase;
+};
 module.exports = mongoose.model("User", userSchema);

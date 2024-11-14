@@ -21,8 +21,8 @@ const auth = (req, res, next) => {
       return res.status(401).json({ message: 'Invalid authorization format' });
     }
 
-    const decoded = jwt.verify(parts[1],  process.env.SECRET_KEY); // Replace with your actual secret key
-    
+    const decoded = jwt.verify(parts[1], process.env.SECRET_KEY); // Replace with your actual secret key
+
     req.user = decoded;
     next();
   } catch (err) {
@@ -32,15 +32,15 @@ const auth = (req, res, next) => {
 
 // Optional function to define public routes (replace with your logic)
 function requiresAuth(url, method) {
-// Consider using a Set for faster lookups, especially with many public routes
-const publicRoutes = ['/login', '/register', '/confirm-email','/resend-code','/logs', 'reset-password', 'verify-reset-link', 'change-password', 'plans', 'verify-mfa', '/api/swagger', '/request-magic-link', '/magic-link'];
-let isverify= false;
-publicRoutes.forEach((route)=>{
-  if(url.includes(route)) {
-    isverify =true;
-  }
-})
-return isverify
+  // Consider using a Set for faster lookups, especially with many public routes
+  const publicRoutes = ['/login', '/register', '/confirm-email', '/resend-code', '/logs', 'reset-password', 'verify-reset-link', 'change-password', 'plans', 'verify-mfa', '/api/swagger', '/request-magic-link', '/magic-link', 'accept-invitatio'];
+  let isverify = false;
+  publicRoutes.forEach((route) => {
+    if (url.includes(route)) {
+      isverify = true;
+    }
+  })
+  return isverify
 }
 
 module.exports = auth;

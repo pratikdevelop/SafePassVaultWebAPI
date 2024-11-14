@@ -13,29 +13,26 @@ const s3 = new AWS.S3({
 });
 module.exports = {
 
-  uploadFile : async (req, res) => {
+  uploadFile: async (req, res) => {
     try {
       const { originalname, path: filePath, size } = req.file;
       const { folderId, sharedWith, encrypted = false, offlineAccess = false } = req.body;
-  
+
       if (!originalname || !filePath) {
         return res.status(400).json({ message: 'Missing required fields' });
       }
-  
+
       // Create file stream
       const fileStream = fs.createReadStream(filePath);
-  
+
       // Upload file to S3
       const params = {
         Bucket: process.env.S3_BUCKET_NAME_FILE_STORAGE,
-        Key: originalname,
+        Key: `files/${originalname}`,
         Body: fileStream,
       };
-  
+
       const response = await s3.upload(params).promise();
-      console.log('res', response);
-      
-  
       // Create file document
       const newFile = new File({
         filename: path.basename(filePath),
@@ -47,12 +44,17 @@ module.exports = {
         ownerId: req.user._id,
         encrypted,
         offlineAccess,
+        location: response.Location
       });
-  
+
       await newFile.save();
-  
+
       res.status(201).json({ message: 'File uploaded successfully', file: newFile });
     } catch (error) {
+      console.log(
+        'eeee', error
+      );
+
       res.status(500).json({ message: 'Error uploading file', error: error.message });
     }
   },
@@ -62,7 +64,13 @@ module.exports = {
       if (!file || file.isDeleted) {
         return res.status(404).json({ message: 'File not found' });
       }
+      const fileUrl = s3.getSignedUrl('getObject', {
+        Bucket: process.env.S3_BUCKET_NAME_FILE_STORAGE,
+        Key: `files/${file.originalName}`,
+        Expires: 400,
+      });
 
+      file.location = fileUrl;
       res.status(200).json(file);
     } catch (error) {
       res.status(500).json({ message: 'Error retrieving file', error: error.message });
@@ -94,12 +102,25 @@ module.exports = {
   deleteFile: async (req, res) => {
     try {
       const file = await File.findById(req.params.id);
+
       if (!file || file.isDeleted) {
         return res.status(404).json({ message: 'File not found' });
       }
+      if (fs.existsSync(file.path)) {
+        fs.unlinkSync(file.path); // Delete the local file
+      } else {
+        console.log(`Local file ${file.path} not found`);
+      }
 
-      file.isDeleted = true;
-      await file.save();
+      // Step 3: Delete the file from S3 (ensure the correct parameters are used)
+      const params = {
+        Bucket: process.env.S3_BUCKET_NAME_FILE_STORAGE, // Ensure the S3 bucket name is correct
+        Key: `files/${file.originalName}`, // The correct parameter name is `Key`, not `key`
+      };
+
+      // Step 4: Perform S3 delete operation
+      await s3.deleteObject(params).promise();
+      await file.deleteOne();
       res.status(200).json({ message: 'File deleted successfully' });
     } catch (error) {
       res.status(500).json({ message: 'Error deleting file', error: error.message });
@@ -122,29 +143,48 @@ module.exports = {
   },
   getAllFiles: async (req, res) => {
     try {
-      const files = await File.find({ isDeleted: false, ownerId: req.user._id }).populate('folderId');
+      const files = await File.find({ isDeleted: false, ownerId: req.user._id }).populate('folderId').populate({
+        path: "ownerId",
+        select: "name"
+      });
       res.status(200).json(files);
     } catch (error) {
       res.status(500).json({ message: 'Error retrieving files', error: error.message });
     }
   },
-
   permanentlyDeleteFile: async (req, res) => {
     try {
+      // Step 1: Find the file in your database
       const file = await File.findById(req.params.id);
       if (!file) {
         return res.status(404).json({ message: 'File not found' });
       }
 
-      // Delete the file from the file system
+      // Step 2: Delete the file from the local filesystem (if it exists)
       if (fs.existsSync(file.path)) {
-        fs.unlinkSync(file.path);
+        fs.unlinkSync(file.path); // Delete the local file
+      } else {
+        console.log(`Local file ${file.path} not found`);
       }
 
-      await file.remove();
-      res.status(200).json({ message: 'File permanently deleted' });
+      // Step 3: Delete the file from S3 (ensure the correct parameters are used)
+      const params = {
+        Bucket: process.env.S3_BUCKET_NAME_FILE_STORAGE, // Ensure the S3 bucket name is correct
+        Key: `files/${file.originalName}`, // The correct parameter name is `Key`, not `key`
+      };
+
+      // Step 4: Perform S3 delete operation
+      const s3Response = await s3.deleteObject(params).promise();
+
+      // Step 5: Optionally, handle response from S3
+      console.log('S3 response:', s3Response);
+
+      // Step 6: Respond to the client
+      return res.status(200).json({ message: 'File permanently deleted', response: s3Response });
     } catch (error) {
-      res.status(500).json({ message: 'Error permanently deleting file', error: error.message });
+      // Step 7: Handle errors properly
+      console.error('Error deleting file:', error);
+      return res.status(500).json({ message: 'Error permanently deleting file', error: error.message });
     }
   },
   createFolder: async (req, res) => {
@@ -176,29 +216,7 @@ module.exports = {
       res.status(500).json({ message: 'Error creating folder', error: error.message });
     }
   },
-  searchFolders: async (req, res) => {
-    try {
-      const ownerId = req.user._id;
-      const { searchTerm } = req.query;
 
-      // Validate inputs
-      if (!searchTerm || !ownerId) {
-        return res.status(400).json({ message: 'Search term and owner ID are required' });
-      }
-
-
-      // Perform a case-insensitive search
-      const folders = await Folder.find({
-        name: { $regex: new RegExp(searchTerm, 'i') }, // Case-insensitive search
-        user: ownerId // Ensure ownerId is valid ObjectId
-      }).exec(); // Ensure the query executes
-
-      res.status(200).json(folders);
-    } catch (error) {
-      res.status(500).json({ message: 'Error searching folders', error: error.message });
-    }
-  },
-  
   searchUsers: async (req, res) => {
     try {
       const senderId = req.user._id; // Get the sender ID from the request user
@@ -243,4 +261,5 @@ module.exports = {
       res.status(500).json({ message: 'Error searching invitations', error: error.message });
     }
   }
+
 };

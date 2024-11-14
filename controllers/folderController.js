@@ -111,3 +111,30 @@ exports.getFoldersByType = async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 };
+
+exports.searchFolders = async (req, res) => {
+  console.log('bm,fmvfmv');
+
+  try {
+    const ownerId = req.user._id;
+    const { searchTerm, type } = req.query;
+
+    // Validate inputs
+    if (!searchTerm || !ownerId) {
+      return res.status(400).json({ message: 'Search term and owner ID are required' });
+    }
+
+
+    // Perform a case-insensitive search
+    const folders = await Folder.find({
+      name: { $regex: new RegExp(searchTerm, 'i') }, // Case-insensitive search
+      type: type,
+      user: ownerId // Ensure ownerId is valid ObjectId
+    }).exec(); // Ensure the query executes
+
+    res.status(200).json(folders);
+  } catch (error) {
+    console.log('ee', error);
+    res.status(500).json({ message: 'Error searching folders', error: error.message });
+  }
+};

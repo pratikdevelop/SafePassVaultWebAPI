@@ -17,7 +17,7 @@ const upload = multer({ storage: storage });
 router.post('/upload', upload.single('file'), fileController.uploadFile);
 
 // Route to get a file by ID
-router.get('/:id', fileController.getFileById);
+router.get('/preview/:id', fileController.getFileById);
 
 router.get('/', fileController.getAllFiles);
 
@@ -31,10 +31,9 @@ router.delete('/:id', fileController.deleteFile);
 router.patch('/:id/restore', fileController.restoreFile);
 
 // Route to permanently delete a file
-router.delete('/:id/permanently', fileController.permanentlyDeleteFile);
+router.delete('/file/:id', fileController.permanentlyDeleteFile);
 
 router.post('/folder', fileController.createFolder);
-router.get('/folders/search', fileController.searchFolders);
 router.get('/searchUsers/:searchTerm', fileController.searchUsers)
 
 
