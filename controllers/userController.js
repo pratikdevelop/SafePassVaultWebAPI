@@ -1033,26 +1033,26 @@ exports.saveSSOSettings = async (req, res) => {
 
 // Account Recovery Route (for example)
 exports.recoverAccount = async (req, res) => {
-  const { email, recoveryPhrase } = req.body; // User provides their email and recovery phrase
+  const { recoveryPhrase } = req.body; // User provides their email and recovery phrase
 
   try {
     // Step 1: Find the user in the database
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ recoveryPhrase: recoveryPhrase });
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
 
     // Step 2: Retrieve the encrypted recovery phrase and IV from the database
-    const { encryptedRecoveryPhrase, iv, encryptedKey } = user;  // Assuming these are stored in the user document
-    const key = await decryptEncryptionKey(encryptedKey);  // You'll need to implement decryptEncryptionKey
+    // const { encryptedRecoveryPhrase, iv, encryptedKey } = user;  // Assuming these are stored in the user document
+    // const key = await decryptEncryptionKey(encryptedKey);  // You'll need to implement decryptEncryptionKey
 
-    // Step 3: Decrypt the stored recovery phrase
-    const decryptedRecoveryPhrase = await decryptRecoveryPhrase(encryptedRecoveryPhrase, iv, key);
+    // // Step 3: Decrypt the stored recovery phrase
+    // const decryptedRecoveryPhrase = await decryptRecoveryPhrase(encryptedRecoveryPhrase, iv, key);
 
     // Step 4: Check if the provided recovery phrase matches the decrypted one
-    if (recoveryPhrase === decryptedRecoveryPhrase) {
+    if (recoveryPhrase === user.recoveryPhrase) {
       // The user has successfully recovered their account (you can perform additional steps, like resetting the password)
-      res.status(200).json({ message: "Account recovery successful" });
+      res.status(200).json({ message: "Account recovery successful", privateKey: user.recoveryPhrase });
     } else {
       res.status(400).json({ message: "Invalid recovery phrase" });
     }
@@ -1061,44 +1061,44 @@ exports.recoverAccount = async (req, res) => {
   }
 };
 
-// Decrypt recovery phrase using AES-GCM
-async function decryptRecoveryPhrase(encryptedBase64, iv, key) {
-  // Step 1: Decode the Base64 encoded string into an ArrayBuffer
-  const encryptedBuffer = base64ToArrayBuffer(encryptedBase64);
+// // Decrypt recovery phrase using AES-GCM
+// async function decryptRecoveryPhrase(encryptedBase64, iv, key) {
+//   // Step 1: Decode the Base64 encoded string into an ArrayBuffer
+//   const encryptedBuffer = base64ToArrayBuffer(encryptedBase64);
 
-  // Step 2: Decrypt the data using AES-GCM
-  const decryptedData = await crypto.subtle.decrypt(
-    {
-      name: "AES-GCM",
-      iv: iv,  // Initialization vector used in encryption
-    },
-    key,
-    encryptedBuffer
-  );
+//   // Step 2: Decrypt the data using AES-GCM
+//   const decryptedData = await crypto.subtle.decrypt(
+//     {
+//       name: "AES-GCM",
+//       iv: iv,  // Initialization vector used in encryption
+//     },
+//     key,
+//     encryptedBuffer
+//   );
 
-  // Step 3: Convert the decrypted ArrayBuffer back into a string
-  const decoder = new TextDecoder();
-  return decoder.decode(decryptedData);
-}
+//   // Step 3: Convert the decrypted ArrayBuffer back into a string
+//   const decoder = new TextDecoder();
+//   return decoder.decode(decryptedData);
+// }
 
-// Helper function to convert Base64 to ArrayBuffer
-function base64ToArrayBuffer(base64) {
-  const binaryString = atob(base64);
-  const length = binaryString.length;
-  const buffer = new ArrayBuffer(length);
-  const view = new Uint8Array(buffer);
-  for (let i = 0; i < length; i++) {
-    view[i] = binaryString.charCodeAt(i);
-  }
-  return buffer;
-}
+// // Helper function to convert Base64 to ArrayBuffer
+// function base64ToArrayBuffer(base64) {
+//   const binaryString = atob(base64);
+//   const length = binaryString.length;
+//   const buffer = new ArrayBuffer(length);
+//   const view = new Uint8Array(buffer);
+//   for (let i = 0; i < length; i++) {
+//     view[i] = binaryString.charCodeAt(i);
+//   }
+//   return buffer;
+// }
 
-// Placeholder for decrypting the encryption key
-async function decryptEncryptionKey(encryptedKey) {
-  // This function should decrypt the encryption key stored in the database
-  // You can use a similar decryption process or a secure key management service (KMS)
+// // Placeholder for decrypting the encryption key
+// async function decryptEncryptionKey(encryptedKey) {
+//   // This function should decrypt the encryption key stored in the database
+//   // You can use a similar decryption process or a secure key management service (KMS)
 
-  // For example:
-  const decryptedKey = await someKeyManagementService.decrypt(encryptedKey);
-  return decryptedKey;
-}
+//   // For example:
+//   const decryptedKey = await someKeyManagementService.decrypt(encryptedKey);
+//   return decryptedKey;
+// }

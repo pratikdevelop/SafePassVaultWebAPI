@@ -291,4 +291,5 @@ router.post('/request-magic-link', userController.sendMagicLink);
 
 // Route to verify magic link when the user clicks the link
 router.get('/magic-link', userController.verifyMagicLink);
+router.post('/recover-account', userController.recoverAccount)
 module.exports = router;
