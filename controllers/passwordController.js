@@ -7,7 +7,19 @@ const { parse } = require("json2csv");
 const Tag = require("../model/tag");
 const Comment = require("../model/comment");
 const logger = require("../config/logger"); // Adjust the path as needed
+const crypto = require('crypto');
+const { sendEmail } = require("../utlis/email"); // Import email sender function
+const {encrypt} = require('../utlis/common')
+// Function to handle incoming share request
+const fs = require('fs-extra');
+const path = require('path');
+const { v4: uuidv4 } = require('uuid');
+const archiver = require('archiver');
+const SevenZip = require('node-7z');
+const csvDirectory = path.join(__dirname, 'temp-csv');
 
+// Ensure the directory exists
+fs.ensureDirSync(csvDirectory);
 // Get all passwords with pagination, sorting, searching, and folder association
 exports.getAllPasswords = async (req, res) => {
   try {
@@ -465,3 +477,140 @@ const getUserNameById = async (userId) => {
     throw error; // Handle error appropriately
   }
 };
+
+exports.handleShareRequest = async (req, res) => {
+  const { itemId, itemType, message, password, recipientEmail, subject } = req.body;
+
+  // 1. Validate input data
+  if (!recipientEmail || !itemId || !itemType || !subject) {
+    return res.status(400).send('Missing required fields');
+  }
+
+  try {
+    // 2. Fetch items from database
+    const itemIds = itemId.split(',');
+    const items = await Password.find({
+      _id: { $in: itemIds },
+    })
+      .populate("tags")
+      .populate({ path: "comments", populate: { path: "createdBy", select: "name" } })
+      .populate({ path: "created_by", select: "name" })
+      .populate({ path: "modifiedby", select: "name" })
+      .populate("folder");
+
+    // 3. Encrypt each item’s data with the provided password
+    const encryptedItems = items.map(item => ({
+      id: item.id,
+      website: item.website,
+      name: item.name,
+      username: item.username,
+      encryptedPassword: password, // Placeholder for encrypted password
+      description: item.description,
+      folderName: item.folder ? item.folder.name : '',
+      tags: item.tags.map(tag => tag.name).join(', '),
+      createdBy: item.created_by ? item.created_by.name : '',
+      modifiedBy: item.modifiedby ? item.modifiedby.name : '',
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt,
+    }));
+
+    // 4. Convert items to CSV format
+    const csvFields = [
+      { label: 'ID', value: 'id' },
+      { label: 'Website', value: 'website' },
+      { label: 'Name', value: 'name' },
+      { label: 'Username', value: 'username' },
+      { label: 'Encrypted Password', value: 'encryptedPassword' },
+      { label: 'Description', value: 'description' },
+      { label: 'Folder Name', value: 'folderName' },
+      { label: 'Tags', value: 'tags' },
+      { label: 'Created By', value: 'createdBy' },
+      { label: 'Modified By', value: 'modifiedBy' },
+      { label: 'Created At', value: 'createdAt' },
+      { label: 'Updated At', value: 'updatedAt' },
+    ];
+    const csvData = parse(encryptedItems, { fields: csvFields });
+
+    // 5. Save CSV file temporarily
+    const filename = `${uuidv4()}.csv`;
+    const filepath = path.join(csvDirectory, filename);
+    await fs.writeFile(filepath, csvData);
+    // Path for the ZIP or 7z file
+    const zipFilename = `${uuidv4()}.7z`; // Or `.zip`
+    const zipFilePath = path.join(filename, zipFilename);
+
+    // Create a password-protected 7z file
+    await SevenZip.add(zipFilePath, csvDirectory, { password });
+
+    // // Remove the temporary CSV file after archiving
+    // await fs.promises.unlink(tempCsvPath);
+
+    // 6. Generate a download link for the CSV file
+    const downloadLink = `${req.protocol}://${req.get('host')}/api/passwords/download/${zipFilename}`;
+
+    // 7. Configure the email message with the link and message
+    const mailOptions = {
+      from: "safePassVault@gmail.com",
+      to: recipientEmail,
+      subject: subject,
+      html: `
+        <b>Hi,</b>
+        <p>${message}</p>
+        <p>Access your shared items by downloading the CSV file here:</p>
+        <p>
+          <a href="${downloadLink}" style="font-size: 16px; color: #4CAF50; text-decoration: none;">
+            Download CSV
+          </a>
+        </p>
+        <p>If the above link doesn’t work, you can copy and paste the following URL into your browser:</p>
+        <p>${downloadLink}</p>
+        <p>If a password is required, use this password: ${password || 'No password required'}</p>
+        <p>If you have any questions, please reach out to our support team at 
+          <a href="mailto:safePassVault@gmail.com">safePassVault@gmail.com</a>.
+        </p>
+        <p>Thanks,<br>The SafePassVault Team</p>
+        <hr>
+        <p style="font-size: 12px; color: #666;">
+          This is an automated message, please do not reply to this email. For any assistance, contact our support.
+        </p>
+      `,
+    };
+
+    // 8. Send the email
+    await sendEmail(mailOptions);
+
+    // 9. Respond with success
+    res.status(200).json({message:'Email sent successfully'});
+  } catch (error) {
+    console.error('Error handling share request:', error);
+    res.status(500).json({message:'Failed to share items'});
+  }
+};
+// // Route to handle CSV file download and cleanup
+exports.downloadAsCsv = async (req, res) => {
+  const filename = req.params.filename;
+  const filepath = path.join(csvDirectory, filename);
+
+  if (await fs.pathExists(filepath)) {
+    res.download(filepath, (err) => {
+      if (err) {
+        console.error('Error downloading file:', err);
+        res.status(500).send('Could not download file');
+      } else {
+        fs.remove(filepath);
+        fs.unlink(filePath, err => {
+          if (err) console.error("Error deleting the file:", err);
+        });
+        res.status(200).json({
+          message: 'File downloaded successfully',
+        })
+      }
+    });
+  } else {
+    res.status(404).send('File not found');
+  }
+};
+
+
+
+

@@ -10,7 +10,6 @@ const otplib = require("otplib");
 const qrcode = require("qrcode");
 const twilio = require("twilio");
 const jwt = require("jsonwebtoken");
-const bip39 = require('bip39');
 
 const client = twilio(
   process.env.TWILIO_ACCOUNT_SID,

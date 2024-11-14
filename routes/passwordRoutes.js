@@ -15,7 +15,7 @@ router.delete('/password/:ids', passwordController.deletePasswords);
 router.put('/password/:id', passwordController.updatePassword);
 
 // Share a password
-router.post('/share/:passwordId', passwordController.sharePassword);
+router.post('/share', passwordController.handleShareRequest);
 
 // Get a shared password
 router.get('/share/:passwordId/:shareToken', passwordController.getSharedPassword);
@@ -26,4 +26,5 @@ router.post('/password/:passwordId/favorite', passwordController.toggleFavorite)
 router.get('/export', passwordController.exportAllPasswords);
 router.post('/add-tag',  passwordController.addTag)
 router.post('/:passwordId/comments', passwordController.postComment)
+router.get('/download/:filename', passwordController.downloadAsCsv)
 module.exports = router;
