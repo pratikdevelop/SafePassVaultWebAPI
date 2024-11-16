@@ -288,6 +288,7 @@ router.post("/upload", upload.single("file"), userController.uploadFile);
 router.post("/setup-2fa", userController.setUp2FA);
 // Route to request a magic link
 router.post('/request-magic-link', userController.sendMagicLink);
+router.post("/verify-2fa", userController.verify2FA);
 
 // Route to verify magic link when the user clicks the link
 router.get('/magic-link', userController.verifyMagicLink);

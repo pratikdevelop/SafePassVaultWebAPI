@@ -8,6 +8,7 @@ const Invitation = require("../model/Invitation");
 const planController = require("./plan-controller");
 const otplib = require("otplib");
 const qrcode = require("qrcode");
+<<<<<<< Updated upstream
 const twilio = require("twilio");
 const jwt = require("jsonwebtoken");
 
@@ -18,6 +19,17 @@ const client = twilio(
 const { validateUserRegistration } = require("../utlis/validators"); // Import validation function
 const { sendEmail } = require("../utlis/email"); // Import email sender function
 const AWS = require("aws-sdk");
+=======
+// const twilio = require("twilio");
+// const twilioClient = twilio(
+//   process.env.TWILIO_ACCOUNT_SID,
+//   process.env.TWILIO_AUTH_TOKEN
+// );
+const { validateUserRegistration } = require("../utlis/validators"); // Import validation function
+const { sendEmail } = require("../utlis/email"); // Import email sender function
+const AWS = require("aws-sdk");
+
+>>>>>>> Stashed changes
 const Folder = require("../model/folder");
 
 // Configure AWS S3
@@ -110,7 +122,11 @@ exports.createUser = async (req, res) => {
 
     // Send email
     sendEmail(mailOptions)
+<<<<<<< Updated upstream
       .then(() => { })
+=======
+      .then((res) => {})
+>>>>>>> Stashed changes
       .catch((err) => {
         console.log(err);
       });
@@ -183,6 +199,10 @@ exports.uploadFile = async (req, res) => {
       user,
     });
   } catch (error) {
+<<<<<<< Updated upstream
+=======
+    console.error("Error uploading file:", error);
+>>>>>>> Stashed changes
     res
       .status(500)
       .json({ message: "File upload failed", error: error.message });
@@ -202,7 +222,14 @@ exports.confirmEmail = async (req, res) => {
     );
 
     if (!user) {
+<<<<<<< Updated upstream
       return res.status(400).send({ message: "Invalid email or confirmation code" });
+=======
+      return res.status(400).send({ message: "Invalid email" });
+    }
+    if (user.confirmationCode !== confirmationCode) {
+      return res.status(400).send({ message: "Invalid confirmation code" });
+>>>>>>> Stashed changes
     }
 
     const token = user.generateAuthToken();
@@ -211,7 +238,6 @@ exports.confirmEmail = async (req, res) => {
     res.status(400).json({ message: "Error confirming email" });
   }
 };
-
 
 exports.getAllUsers = async (req, res) => {
   try {
@@ -904,31 +930,6 @@ exports.resendConfirmationCode = async (req, res) => {
   });
 };
 
-exports.setUp2FA = async (req, res) => {
-  const { email } = req.body;
-  const user = await User.findOne({ email });
-  if (!user) {
-    return res.status(404).send({ message: "User not found" });
-  }
-
-  // Generate a TOTP secret key for the user
-  const secret = otplib.authenticator.generateSecret();
-
-  // Generate a QR code that the user can scan with their authentication app
-  const otpauth = otplib.authenticator.keyuri(email, "SafePassVault", secret);
-  qrcode.toDataURL(otpauth, async (err, imageUrl) => {
-    if (err) {
-      return res
-        .status(500)
-        .send({ message: "Error generating QR code", success: false });
-    }
-    await user.updateOne(
-      { totpSecret: secret, totpQrImage: imageUrl },
-      { new: true }
-    );
-    res.json({ imageUrl, message: "QR Code generated successfully" }); // Send QR code URL to the frontend
-  });
-};
 exports.sendMagicLink = async (req, res) => {
   const { email } = req.body;
   try {
@@ -1060,44 +1061,53 @@ exports.recoverAccount = async (req, res) => {
   }
 };
 
-// // Decrypt recovery phrase using AES-GCM
-// async function decryptRecoveryPhrase(encryptedBase64, iv, key) {
-//   // Step 1: Decode the Base64 encoded string into an ArrayBuffer
-//   const encryptedBuffer = base64ToArrayBuffer(encryptedBase64);
+exports.setUp2FA = async (req, res) => {
+  const { email } = req.body;
+  const user = await User.findOne({ email });
+  if (!user) {
+    return res.status(404).send({ message: "User not found" });
+  }
 
-//   // Step 2: Decrypt the data using AES-GCM
-//   const decryptedData = await crypto.subtle.decrypt(
-//     {
-//       name: "AES-GCM",
-//       iv: iv,  // Initialization vector used in encryption
-//     },
-//     key,
-//     encryptedBuffer
-//   );
+  // Generate a TOTP secret key for the user
+  const secret = otplib.authenticator.generateSecret();
+  await user.updateOne(
+    {
+      totpSecret: secret,
+    },
+    {
+      new: true,
+    }
+  );
+  // Generate a QR code that the user can scan with their authentication app
+  const otpauth = otplib.authenticator.keyuri(email, "SafePassVault", secret);
+  qrcode.toDataURL(otpauth, (err, imageUrl) => {
+    if (err) {
+      return res.status(500).send("Error generating QR code");
+    }
+    res.json({ imageUrl }); // Send QR code URL to the frontend
+  });
+};
 
-//   // Step 3: Convert the decrypted ArrayBuffer back into a string
-//   const decoder = new TextDecoder();
-//   return decoder.decode(decryptedData);
-// }
+// Verify TOTP (During Login)
+exports.verify2FA = async (req, res) => {
+  const { email, token } = req.body;
 
-// // Helper function to convert Base64 to ArrayBuffer
-// function base64ToArrayBuffer(base64) {
-//   const binaryString = atob(base64);
-//   const length = binaryString.length;
-//   const buffer = new ArrayBuffer(length);
-//   const view = new Uint8Array(buffer);
-//   for (let i = 0; i < length; i++) {
-//     view[i] = binaryString.charCodeAt(i);
-//   }
-//   return buffer;
-// }
+  const user = await User.findOne({ email });
+  if (!user) {
+    return res.status(404).send({ message: "User not found" });
+  }
+  console.log("token", token);
+  console.log("token", user);
 
-// // Placeholder for decrypting the encryption key
-// async function decryptEncryptionKey(encryptedKey) {
-//   // This function should decrypt the encryption key stored in the database
-//   // You can use a similar decryption process or a secure key management service (KMS)
+  // Verify the token generated by the authentication app
+  const isValid = otplib.authenticator.verify({
+    token,
+    secret: user.totpSecret,
+  });
 
-//   // For example:
-//   const decryptedKey = await someKeyManagementService.decrypt(encryptedKey);
-//   return decryptedKey;
-// }
+  if (isValid) {
+    res.send("2FA verified successfully");
+  } else {
+    res.status(400).send("Invalid token");
+  }
+};
