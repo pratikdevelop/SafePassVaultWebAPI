@@ -97,10 +97,19 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: true, // The public key for authentication
   },
+  privateKey: {
+    type: String,
+    required: true
+  },
   recoveryPhrase: {
     type: String,
     required: true, // Store the recovery phrase (in plain text or encrypted)
   },
+  fingerPrint: {
+    type: String,
+    required: true, // Store the fingerprint of the user's device
+  },
+
 });
 
 // Password hashing middleware

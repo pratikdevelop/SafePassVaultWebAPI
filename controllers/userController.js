@@ -10,7 +10,9 @@ const otplib = require("otplib");
 const qrcode = require("qrcode");
 const twilio = require("twilio");
 const jwt = require("jsonwebtoken");
+const NodeRSA = require('node-rsa');
 
+const key = new NodeRSA({ b: 512 });
 const client = twilio(
   process.env.TWILIO_ACCOUNT_SID,
   process.env.TWILIO_AUTH_TOKEN
@@ -49,16 +51,31 @@ exports.createUser = async (req, res) => {
       state,
       postalCode,
       country,
-      publicKey, // Public key from the client (assumed passed in request body)
-      recoveryPhrase, // Encrypted recovery phrase from the client (in Base64 format)
     } = req.body;
 
+    // Generate RSA key pair (public and private)
+    const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
+      modulusLength: 2048,
+    });
+
+    // A recovery phrase (should be something the user can easily remember, not hardcoded)
+    const recoveryPhrase = "Access@#$1234!";  // This should be securely handled
+
+    // Encrypt the recovery phrase with the public key before saving (private key stays local)
+    const encryptedRecoveryPhrase = crypto.publicEncrypt(publicKey, Buffer.from(recoveryPhrase));
+
+    // Create a digital signature using the private key (used for verification, never send this signature to the user)
+    const signature = crypto.sign("sha256", Buffer.from(recoveryPhrase), {
+      key: privateKey,
+      padding: crypto.constants.RSA_PKCS1_PSS_PADDING,
+    });
+
+    // Log the base64 signature (fingerprint) - This is a one-time process for debugging, don't expose it to users
+    console.log(signature.toString("base64"));
+
     // Check if publicKey and recoveryPhrase are provided (critical for registration)
-    if (!publicKey) {
-      return res.status(400).json({ message: "Public key is required for registration." });
-    }
-    if (!recoveryPhrase) {
-      return res.status(400).json({ message: "Recovery phrase is required for registration." });
+    if (!publicKey || !recoveryPhrase) {
+      return res.status(400).json({ message: "Public key and recovery phrase are required for registration." });
     }
 
     // Create new user and organization instances
@@ -72,8 +89,9 @@ exports.createUser = async (req, res) => {
       state,
       postalCode,
       country,
-      publicKey, // Store the public key with the user
-      recoveryPhrase, // Store the encrypted recovery phrase as-is
+      publicKey: publicKey.toString(), // Store the public key with the user
+      encryptedRecoveryPhrase: encryptedRecoveryPhrase.toString('base64'), // Store encrypted recovery phrase (never plaintext)
+      fingerPrint: signature.toString('base64'), // Store the fingerprint (signature) as a base64 string
     });
 
     const organization = new Organization({
@@ -84,11 +102,11 @@ exports.createUser = async (req, res) => {
     // Associate organization with user
     trialUser.organization = organization._id;
 
-    // Generate confirmation code
+    // Generate confirmation code (for email verification)
     const confirmationCode = crypto.randomInt(100000, 999999).toString();
     trialUser.confirmationCode = confirmationCode;
 
-    // Email options
+    // Email options for sending the confirmation code
     const mailOptions = {
       from: "safepassvault@gmail.com",
       to: email,
@@ -108,7 +126,7 @@ exports.createUser = async (req, res) => {
       `,
     };
 
-    // Send email
+    // Send email (handle potential errors)
     sendEmail(mailOptions)
       .then(() => { })
       .catch((err) => {
@@ -133,20 +151,17 @@ exports.createUser = async (req, res) => {
     // Save folders to the database
     await Folder.insertMany(folders);
 
-    // Respond with success message
+    // Respond with success message (NEVER send the recovery phrase in response)
     return res.status(201).json({
       userId: user._id,
-      message: `User created successfully. Welcome email sent to ${email}`,
-      recoveryPhrase, // Do NOT send plaintext recovery phrase in a real app
+      message: `User created successfully. A verification email has been sent to ${email}.`,
+      // recoveryPhrase: "Access@#$1234!"  // DO NOT send plaintext recovery phrase in a real app
     });
   } catch (error) {
     // Handle errors
-    return res
-      .status(400)
-      .json({ message: `Error creating trial user: ${error.message}` });
+    return res.status(400).json({ message: `Error creating trial user: ${error.message}` });
   }
 };
-
 exports.uploadFile = async (req, res) => {
   try {
     if (!req.file) {
@@ -1005,34 +1020,68 @@ exports.saveSSOSettings = async (req, res) => {
 };
 
 // Account Recovery Route (for example)
+const crypto = require('crypto');
+const User = require('../models/User'); // Assuming user model
+
 exports.recoverAccount = async (req, res) => {
-  const { recoveryPhrase } = req.body; // User provides their email and recovery phrase
-
   try {
-    // Step 1: Find the user in the database
-    const user = await User.findOne({ recoveryPhrase: recoveryPhrase });
+    // Extract recovery data from request body
+    const { email, recoveryPhrase, signature } = req.body;
+
+    // Validate required fields
+    if (!email || !recoveryPhrase || !signature) {
+      return res.status(400).json({
+        message: "Email, recovery phrase, and signature are required for recovery."
+      });
+    }
+
+    // Retrieve user from the database using the email
+    const user = await User.findOne({ email });
+
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({ message: "User not found." });
     }
 
-    // Step 2: Retrieve the encrypted recovery phrase and IV from the database
-    // const { encryptedRecoveryPhrase, iv, encryptedKey } = user;  // Assuming these are stored in the user document
-    // const key = await decryptEncryptionKey(encryptedKey);  // You'll need to implement decryptEncryptionKey
+    // Retrieve the user's public key and signature from the database
+    const publicKey = user.publicKey;
+    const storedSignature = Buffer.from(user.fingerPrint, 'base64'); // The stored signature (fingerprint)
 
-    // // Step 3: Decrypt the stored recovery phrase
-    // const decryptedRecoveryPhrase = await decryptRecoveryPhrase(encryptedRecoveryPhrase, iv, key);
+    // Verify the signature using the public key
+    const isSignatureValid = crypto.verify(
+      "sha256",
+      Buffer.from(recoveryPhrase), // Use the provided recovery phrase for verification
+      {
+        key: publicKey,
+        padding: crypto.constants.RSA_PKCS1_PSS_PADDING
+      },
+      storedSignature
+    );
 
-    // Step 4: Check if the provided recovery phrase matches the decrypted one
-    if (recoveryPhrase === user.recoveryPhrase) {
-      // The user has successfully recovered their account (you can perform additional steps, like resetting the password)
-      res.status(200).json({ message: "Account recovery successful", privateKey: user.recoveryPhrase });
-    } else {
-      res.status(400).json({ message: "Invalid recovery phrase" });
+    // If the signature doesn't match, return an error
+    if (!isSignatureValid) {
+      return res.status(400).json({ message: "Invalid recovery phrase or signature." });
     }
-  } catch (err) {
-    res.status(500).json({ message: "Error recovering account: " + err.message });
+
+    // If signature is valid, proceed with recovery (e.g., resetting the password)
+    const { newPassword } = req.body;
+
+    if (!newPassword) {
+      return res.status(400).json({ message: "New password is required for recovery." });
+    }
+
+    // Update user's password (remember to hash the password before saving)
+    user.password = newPassword;
+    await user.save();
+
+    // Return success message
+    return res.status(200).json({ message: "Account successfully recovered and password updated." });
+
+  } catch (error) {
+    // Handle any errors that occurred during the process
+    return res.status(500).json({ message: `Error during account recovery: ${error.message}` });
   }
 };
+
 
 exports.setUp2FA = async (req, res) => {
   const { email } = req.body;
