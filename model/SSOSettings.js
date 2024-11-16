@@ -2,6 +2,7 @@
 const mongoose = require('mongoose');
 
 const SSOSettingsSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   provider: {
     type: String,
     required: true,
@@ -16,6 +17,6 @@ const SSOSettingsSchema = new mongoose.Schema({
   secretExpiry: { type: Date, required: false },   // Optional, for rotating secrets
   scopes: { type: [String], required: false },     // Scopes for OAuth-based providers like Google and Facebook
   additionalSettings: { type: Map, of: String }    // Allows custom settings for other providers
-}, { timestamps: true });
+}, { timestamps: true, toJSON: { getters: true } });
 
 module.exports = mongoose.model('SSOSettings', SSOSettingsSchema);

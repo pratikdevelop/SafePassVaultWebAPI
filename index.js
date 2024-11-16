@@ -19,7 +19,8 @@ const logRoutes = require('./routes/logRoutes')
 const auth = require("./middleware")
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./config/swagger')
-const Plan = require('./model/plan')
+const Plan = require('./model/plan');
+const ssoRoutes = require('./routes/ssoRoutes');
 const folderRoutes = require('./routes/folderRoutes'); // Adjust the path as necessary
 const port = process.env.PORT || 3000;
 app.get("/", (req, res) => {
@@ -40,7 +41,8 @@ app.use('/api/security-questions', securityQuestionRoutes);
 app.use('/api/files', fileRoutes);
 app.use('/api/share', shareItemRoutes);
 app.use('/api/plans', planRoutes);
-app.use('/api/logs', logRoutes)
+app.use('/api/logs', logRoutes);
+app.use('/api/sso-settings', ssoRoutes)
 
 app.listen(port, () => {
   console.log(`Server started on port ${port}`);

@@ -8,7 +8,6 @@ const Invitation = require("../model/Invitation");
 const planController = require("./plan-controller");
 const otplib = require("otplib");
 const qrcode = require("qrcode");
-<<<<<<< Updated upstream
 const twilio = require("twilio");
 const jwt = require("jsonwebtoken");
 
@@ -19,17 +18,6 @@ const client = twilio(
 const { validateUserRegistration } = require("../utlis/validators"); // Import validation function
 const { sendEmail } = require("../utlis/email"); // Import email sender function
 const AWS = require("aws-sdk");
-=======
-// const twilio = require("twilio");
-// const twilioClient = twilio(
-//   process.env.TWILIO_ACCOUNT_SID,
-//   process.env.TWILIO_AUTH_TOKEN
-// );
-const { validateUserRegistration } = require("../utlis/validators"); // Import validation function
-const { sendEmail } = require("../utlis/email"); // Import email sender function
-const AWS = require("aws-sdk");
-
->>>>>>> Stashed changes
 const Folder = require("../model/folder");
 
 // Configure AWS S3
@@ -122,11 +110,7 @@ exports.createUser = async (req, res) => {
 
     // Send email
     sendEmail(mailOptions)
-<<<<<<< Updated upstream
       .then(() => { })
-=======
-      .then((res) => {})
->>>>>>> Stashed changes
       .catch((err) => {
         console.log(err);
       });
@@ -199,10 +183,6 @@ exports.uploadFile = async (req, res) => {
       user,
     });
   } catch (error) {
-<<<<<<< Updated upstream
-=======
-    console.error("Error uploading file:", error);
->>>>>>> Stashed changes
     res
       .status(500)
       .json({ message: "File upload failed", error: error.message });
@@ -222,14 +202,7 @@ exports.confirmEmail = async (req, res) => {
     );
 
     if (!user) {
-<<<<<<< Updated upstream
       return res.status(400).send({ message: "Invalid email or confirmation code" });
-=======
-      return res.status(400).send({ message: "Invalid email" });
-    }
-    if (user.confirmationCode !== confirmationCode) {
-      return res.status(400).send({ message: "Invalid confirmation code" });
->>>>>>> Stashed changes
     }
 
     const token = user.generateAuthToken();

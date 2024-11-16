@@ -9,13 +9,13 @@ const Comment = require("../model/comment");
 const logger = require("../config/logger"); // Adjust the path as needed
 const crypto = require('crypto');
 const { sendEmail } = require("../utlis/email"); // Import email sender function
-const {encrypt} = require('../utlis/common')
+const { encrypt } = require('../utlis/common')
 // Function to handle incoming share request
 const fs = require('fs-extra');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const archiver = require('archiver');
-const SevenZip = require('node-7z');
+const SevenZip = require('7zip-bin');  // 7zip-bin to add password protection
 const csvDirectory = path.join(__dirname, 'temp-csv');
 
 // Ensure the directory exists
@@ -53,7 +53,8 @@ exports.getAllPasswords = async (req, res) => {
 
     // Initialize the main query object
     let query = {
-      ...searchQuery};
+      ...searchQuery
+    };
     // Apply folderId filter if provided
     if (folderId) query.folder = folderId;
 
@@ -80,10 +81,10 @@ exports.getAllPasswords = async (req, res) => {
 
       case "all":
       default:
-        
+
         if (!query?.$or) {
           query = {
-            $or:[]
+            $or: []
           }
         }
         query.$or.push({ created_by: userId });
@@ -534,21 +535,35 @@ exports.handleShareRequest = async (req, res) => {
     // 5. Save CSV file temporarily
     const filename = `${uuidv4()}.csv`;
     const filepath = path.join(csvDirectory, filename);
-    await fs.writeFile(filepath, csvData);
-    // Path for the ZIP or 7z file
-    const zipFilename = `${uuidv4()}.7z`; // Or `.zip`
-    const zipFilePath = path.join(filename, zipFilename);
+    await fs.promises.writeFile(filepath, csvData);
 
-    // Create a password-protected 7z file
-    await SevenZip.add(zipFilePath, csvDirectory, { password });
+    // 6. Create a .zip file (instead of .7z)
+    const zipFilename = `${uuidv4()}.zip`;
+    const zipFilePath = path.join(csvDirectory, zipFilename);
+    const output = fs.createWriteStream(zipFilePath);
+    const archive = archiver('zip', { zlib: { level: 9 } }); // Compression level 9 is max
 
-    // // Remove the temporary CSV file after archiving
-    // await fs.promises.unlink(tempCsvPath);
+    output.on('close', () => {
+      console.log(`Created zip file: ${zipFilePath}, Total bytes: ${archive.pointer()}`);
+    });
 
-    // 6. Generate a download link for the CSV file
+    archive.on('error', (err) => {
+      throw err;
+    });
+
+    // Pipe the archive output to the zip file
+    archive.pipe(output);
+
+    // Append the CSV file to the zip archive
+    archive.file(filepath, { name: filename });
+
+    // Finalize the archive
+    await archive.finalize();
+
+    // 7. Generate a download link for the zip file
     const downloadLink = `${req.protocol}://${req.get('host')}/api/passwords/download/${zipFilename}`;
 
-    // 7. Configure the email message with the link and message
+    // 8. Configure the email message with the link and message
     const mailOptions = {
       from: "safePassVault@gmail.com",
       to: recipientEmail,
@@ -576,14 +591,15 @@ exports.handleShareRequest = async (req, res) => {
       `,
     };
 
-    // 8. Send the email
+    // 9. Send the email
     await sendEmail(mailOptions);
 
-    // 9. Respond with success
-    res.status(200).json({message:'Email sent successfully'});
+    // 10. Respond with success
+    res.status(200).json({ message: 'Email sent successfully' });
+
   } catch (error) {
     console.error('Error handling share request:', error);
-    res.status(500).json({message:'Failed to share items'});
+    res.status(500).json({ message: 'Failed to share items' });
   }
 };
 // // Route to handle CSV file download and cleanup
