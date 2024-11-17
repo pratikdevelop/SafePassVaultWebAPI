@@ -109,7 +109,7 @@ router.delete("/profile", userController.deleteProfile);
  *       200:
  *         description: Reset password email sent successfully.
  */
-router.post("/reset-password", userController.resetPassword);
+router.post("/reset-password", userController.initiateRecovery);
 
 /**
  * @swagger
@@ -292,5 +292,6 @@ router.post("/verify-2fa", userController.verify2FA);
 
 // Route to verify magic link when the user clicks the link
 router.get('/magic-link', userController.verifyMagicLink);
-router.post('/recover-account', userController.recoverAccount)
+router.post('/recover-account', userController.initiateRecovery)
+router.post('/recovery-verify', userController.verifyRecovery)
 module.exports = router;

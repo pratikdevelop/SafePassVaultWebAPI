@@ -44,6 +44,7 @@ app.use('/api/plans', planRoutes);
 app.use('/api/logs', logRoutes);
 app.use('/api/sso-settings', ssoRoutes)
 
+
 app.listen(port, () => {
   console.log(`Server started on port ${port}`);
 });
