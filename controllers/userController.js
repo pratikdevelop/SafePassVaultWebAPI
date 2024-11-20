@@ -17,7 +17,7 @@ const client = twilio(
   process.env.TWILIO_AUTH_TOKEN
 );
 const { validateUserRegistration } = require("../utlis/validators"); // Import validation function
-const { sendEmail } = require("../utlis/email"); // Import email sender function
+// const { sendEmail } = require("../utlis/email"); // Import email sender function
 const AWS = require("aws-sdk");
 const Folder = require("../model/folder");
 
@@ -51,8 +51,8 @@ exports.createUser = async (req, res) => {
     // Encrypt the recovery phrase with the public key
     const recoveryPhrase = "Access@#$1234!";
     const encryptedRecoveryPhrase = crypto.publicEncrypt(publicKeyPEM, Buffer.from(recoveryPhrase));
-    console.log('fff',encryptedRecoveryPhrase.toString());
-    
+    console.log('fff', encryptedRecoveryPhrase.toString());
+
     // Sign the recovery phrase
     const signature = crypto.sign("sha256", Buffer.from(recoveryPhrase), {
       key: privateKeyPEM,
@@ -75,7 +75,7 @@ exports.createUser = async (req, res) => {
       state,
       postalCode,
       country,
-      privateKey:privateKeyPEM,
+      privateKey: privateKeyPEM,
       publicKey: publicKeyPEM,
       recoveryPhrase: encryptedRecoveryPhrase.toString('base64'),
       fingerPrint: signature.toString('base64'),
@@ -107,9 +107,9 @@ exports.createUser = async (req, res) => {
       `,
     };
 
-    sendEmail(mailOptions)
-      .then(() => { })
-      .catch((err) => console.log(err));
+    // sendEmail(mailOptions)
+    // .then(() => { })
+    // .catch((err) => console.log(err));
 
     // Save user and organization to DB
     const user = await trialUser.save();
@@ -198,11 +198,11 @@ exports.uploadFile = async (req, res) => {
 };
 // Confirm email endpointre
 exports.confirmEmail = async (req, res) => {
-  const { email="johndoe@yopmail.com", confirmationCode } = req.body;
+  const { email = "johndoe@yopmail.com", confirmationCode } = req.body;
 
   try {
     const user = await User.findOneAndUpdate(
-      { email:'johndoe@yopmail.com', confirmationCode },
+      { email, confirmationCode },
       {
         $set: { emailConfirmed: true, confirmationCode: null },
       },
@@ -357,7 +357,7 @@ exports.resetPassword = async (req, res) => {
       `,
     };
 
-    await sendEmail(mailOptions);
+    // await sendEmail(mailOptions);
 
     res.status(200).send({
       message: "Password reset link sent successfully",
@@ -500,7 +500,7 @@ exports.sendInvitation = async (req, res) => {
     };
 
     // Send the email using the configured transporter
-    await sendEmail(mailOptions);
+    // await sendEmail(mailOptions);
 
     res.status(200).json({ message: "Invitation sent successfully" });
   } catch (error) {
@@ -564,7 +564,7 @@ exports.resendInvitation = async (req, res) => {
       `,
     };
 
-    await sendEmail(mailOptions);
+    // await sendEmail(mailOptions);
 
     res.status(200).json({ message: "Invitation resent successfully" });
   } catch (error) {
@@ -672,7 +672,7 @@ exports.acceptInvitation = async (req, res) => {
         </p>
       `,
     };
-    await sendEmail(mailOptions);
+    // await sendEmail(mailOptions);
 
     res.status(200).json({
       message: "Invitation accepted and verification code sent successfully",
@@ -822,7 +822,7 @@ exports.loginUser = async (req, res) => {
           `,
         };
 
-        await sendEmail(mailOptions);
+        // await sendEmail(mailOptions);
 
         res.status(200).send({
           message: "MFA code sent via email",
@@ -904,7 +904,7 @@ exports.resendConfirmationCode = async (req, res) => {
     `,
   };
 
-  await sendEmail(mailOptions);
+  // await sendEmail(mailOptions);
   await user.save();
   res.status(201).send({
     message: `Resend Email Confirmation code send to your mail`,
@@ -926,12 +926,12 @@ exports.sendMagicLink = async (req, res) => {
     const magicLink = `${process.env.FRONTEND_URL}/auth/magic-link?token=${token}`;
 
     // Send magic link via email
-    await sendEmail({
-      from: "safepassvault@gmail.com",
-      to: email,
-      subject: "Your SafePassVault Magic Link",
-      html: `<p>Click the link below to log in:</p><a href="${magicLink}">Login to SafePassVault</a>`,
-    });
+    // await sendEmail({
+    //   from: "safepassvault@gmail.com",
+    //   to: email,
+    //   subject: "Your SafePassVault Magic Link",
+    //   html: `<p>Click the link below to log in:</p><a href="${magicLink}">Login to SafePassVault</a>`,
+    // });
 
     res.status(200).json({ message: "Magic link sent to your email." });
   } catch (error) {
@@ -1104,7 +1104,7 @@ exports.initiateRecovery = async (req, res) => {
       `,
     };
 
-    await sendEmail(mailOptions);
+    // await sendEmail(mailOptions);
 
     return res.status(200).json({ message: "Recovery email sent." });
   } catch (error) {

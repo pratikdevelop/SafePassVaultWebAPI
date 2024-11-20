@@ -22,6 +22,7 @@ const swaggerSpec = require('./config/swagger')
 const Plan = require('./model/plan');
 const ssoRoutes = require('./routes/ssoRoutes');
 const folderRoutes = require('./routes/folderRoutes'); // Adjust the path as necessary
+const addressRoutes = require('./routes/addressRoutes'); // Import routes
 const port = process.env.PORT || 3000;
 app.get("/", (req, res) => {
   res.send("Hello World");
@@ -29,6 +30,7 @@ app.get("/", (req, res) => {
 app.use(cors());
 app.use(express.json());
 app.use(auth);
+app.use('/api/addresses', addressRoutes);
 app.use('/api/folders', folderRoutes);
 app.use('/api/swagger', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use("/api/auth", users);
