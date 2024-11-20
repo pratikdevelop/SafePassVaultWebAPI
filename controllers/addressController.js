@@ -17,7 +17,7 @@ exports.createAddress = async (req, res) => {
 exports.getAllAddresses = async (req, res) => {
     try {
         const addresses = await Address.find();
-        res.status(200).json(addresses);
+        res.status(200).json({addresses});
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -43,7 +43,7 @@ exports.updateAddress = async (req, res) => {
         if (!updatedAddress) {
             return res.status(404).json({ error: 'Address not found' });
         }
-        res.status(200).json(updatedAddress);
+        res.status(200).json({address: updatedAddress});
     } catch (err) {
         res.status(400).json({ error: err.message });
     }
