@@ -7,7 +7,8 @@ exports.createAddress = async (req, res) => {
         req.body['userId'] = req.user._id;
         const address = new Address(req.body);
         await address.save();
-        res.status(201).json(address);
+        res.status(201).json({address, 
+            message: 'Address created successfully'});
     } catch (err) {
         res.status(400).json({ error: err.message });
     }
