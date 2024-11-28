@@ -1,4 +1,4 @@
-name: Node.js CI/CD
+name: Node.js CI/CD with Kubernetes and Helm
 
 on:
   push:
@@ -74,3 +74,39 @@ jobs:
 
       - name: Push Docker Image to Docker Hub
         run: docker push developerhacker/password-app-api_backend
+
+  deploy-to-k8s:
+    runs-on: ubuntu-latest
+    needs: docker-build
+    environment: production
+
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v3
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v2
+        with:
+          version: v3.9.0  # You can specify the Helm version you want to use.
+
+      - name: Set up Kubernetes Context
+        run: |
+          kubectl config set-cluster my-cluster --server=${{ secrets.K8S_SERVER }} --certificate-authority=${{ secrets.K8S_CA }}
+          kubectl config set-credentials my-user --token=${{ secrets.K8S_TOKEN }}
+          kubectl config set-context my-context --cluster=my-cluster --user=my-user
+          kubectl config use-context my-context
+
+      - name: Helm Upgrade/Install Application
+        run: |
+          helm upgrade --install password-app-api_backend ./helm \
+            --set image.repository=developerhacker/password-app-api_backend \
+            --set image.tag=${{ github.sha }} \
+            --set mongo.dbUsername=${{ secrets.MONGO_DB_USERNAME }} \
+            --set mongo.dbPassword=${{ secrets.MONGO_DB_PASSWORD }} \
+            --set mongo.db=${{ secrets.MONGO_DB }} \
+            --namespace production \
+            --wait
+
+      - name: Verify Kubernetes Deployment
+        run: |
+          kubectl rollout status deployment/password-app-api_backend --namespace production

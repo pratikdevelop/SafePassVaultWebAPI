@@ -128,7 +128,7 @@ router.post("/reset-password", userController.initiateRecovery);
  *       200:
  *         description: Password changed successfully.
  */
-router.patch("/change-password/:id", userController.changePassword);
+router.patch("/change-password/:param", userController.changePassword);
 
 /**
  * @swagger
@@ -292,6 +292,7 @@ router.post("/verify-2fa", userController.verify2FA);
 
 // Route to verify magic link when the user clicks the link
 router.get('/magic-link', userController.verifyMagicLink);
-router.post('/recover-account', userController.initiateRecovery)
-router.post('/recovery-verify', userController.verifyRecovery)
+router.post('/recover-account', userController.initiateRecovery);
+router.post('/recovery-verify', userController.verifyRecovery);
+router.post('/generate-private-key', userController.addPrivateAndPublicKey)
 module.exports = router;

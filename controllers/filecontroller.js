@@ -44,9 +44,7 @@ module.exports = {
         ownerId: req.user._id,
         encrypted,
         offlineAccess,
-        location: response.Location,
-        notes: req.body.notes,
-        name:req.body.name
+        location: response.Location
       });
 
       await newFile.save();

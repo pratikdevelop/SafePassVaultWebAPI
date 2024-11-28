@@ -7,91 +7,49 @@ const Invitation = require("../model/Invitation");
 const planController = require("./plan-controller");
 const otplib = require("otplib");
 const qrcode = require("qrcode");
-const twilio = require("twilio");
 const jwt = require("jsonwebtoken");
-const NodeRSA = require('node-rsa');
-const path = require('path');
-const fs = require('fs');
-const client = twilio(
-  process.env.TWILIO_ACCOUNT_SID,
-  process.env.TWILIO_AUTH_TOKEN
-);
+const fs = require("fs");
+const { s3 } = require("../config/awsconfig");
+const { sendSms } = require("../config/twilloConfig");
+const mongoose = require("mongoose");
 const { validateUserRegistration } = require("../utlis/validators"); // Import validation function
-// const { sendEmail } = require("../utlis/email"); // Import email sender function
-const AWS = require("aws-sdk");
-const Folder = require("../model/folder");
-
-// Configure AWS S3
-const s3 = new AWS.S3({
-  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-  region: process.env.AWS_REGION,
-});
-
-
-
+const { sendEmail } = require("../utlis/email"); // Import email sender function
 exports.createUser = async (req, res) => {
   try {
-    // Validate user registration data
     const validation = await validateUserRegistration(req.body);
     if (!validation.isValid) {
       return res.status(400).json({ errors: validation.errors });
     }
-
-    const { email, password, name, phone, billingAddress, city, state, postalCode, country } = req.body;
-
-    // Generate RSA key pair
-    const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
-      modulusLength: 2048,
-    });
-
-    const publicKeyPEM = publicKey.export({ type: 'spki', format: 'pem' });
-    const privateKeyPEM = privateKey.export({ type: 'pkcs8', format: 'pem' });
-
-    // Encrypt the recovery phrase with the public key
-    const recoveryPhrase = "Access@#$1234!";
-    const encryptedRecoveryPhrase = crypto.publicEncrypt(publicKeyPEM, Buffer.from(recoveryPhrase));
-    console.log('fff', encryptedRecoveryPhrase.toString());
-
-    // Sign the recovery phrase
-    const signature = crypto.sign("sha256", Buffer.from(recoveryPhrase), {
-      key: privateKeyPEM,
-      padding: crypto.constants.RSA_PKCS1_PSS_PADDING,
-    });
-
-    // Check for missing public key and recovery phrase
-    if (!publicKeyPEM || !recoveryPhrase) {
-      return res.status(400).json({ message: "Public key and recovery phrase are required for registration." });
-    }
-
-    // Create the user
+    const {
+      email,
+      password,
+      name,
+      phone,
+      address,
+      city,
+      state,
+      postalCode,
+      country,
+    } = req.body;
     const trialUser = new User({
       email,
       password,
       name,
       phone,
-      billingAddress,
+      address,
       city,
       state,
       postalCode,
       country,
-      privateKey: privateKeyPEM,
-      publicKey: publicKeyPEM,
-      recoveryPhrase: encryptedRecoveryPhrase.toString('base64'),
-      fingerPrint: signature.toString('base64'),
     });
 
     const organization = new Organization({
       name: `${name}'s Organization`,
       owner: trialUser._id,
     });
-
     trialUser.organization = organization._id;
-
     const confirmationCode = crypto.randomInt(100000, 999999).toString();
     trialUser.confirmationCode = confirmationCode;
-
-    // Send confirmation email
     const mailOptions = {
       from: "safepassvault@gmail.com",
       to: email,
@@ -106,47 +64,79 @@ exports.createUser = async (req, res) => {
         <p>Thanks,<br>The SafePassVault Team</p>
       `,
     };
-
-    // sendEmail(mailOptions)
-    // .then(() => { })
-    // .catch((err) => console.log(err));
-
-    // Save user and organization to DB
+    await sendEmail(mailOptions);
     const user = await trialUser.save();
     await organization.save();
-
-    // Create default folders for the new user
-    const folderTypes = ["passwords", "notes", "cards", "proof", "files"];
-    const folders = folderTypes.map((type) => ({
-      user: user._id,
-      name: `${type.charAt(0).toUpperCase() + type.slice(1)} Folder`,
-      type: type,
-      isSpecial: true,
-    }));
-
-    await Folder.insertMany(folders);
-
-    res.setHeader('Content-Disposition', 'attachment; filename="private-key.pem"');
-    // Provide the user with a download link
     return res.status(201).json({
       userId: user._id,
       message: `User created successfully. A verification email has been sent to ${email}.`,
-      privateKeyPEM
     });
   } catch (error) {
-    return res.status(400).json({ message: `Error creating trial user: ${error.message}` });
+    return res
+      .status(400)
+      .json({ message: `Error creating trial user: ${error.message}` });
+  }
+};
+
+exports.addPrivateAndPublicKey = async (req, res) => {
+  try {
+    const { email, passphrase } = req.body;
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    const { publicKey, privateKey } = crypto.generateKeyPairSync("rsa", {
+      modulusLength: 2048,
+    });
+    const publicKeyPEM = publicKey.export({ type: "spki", format: "pem" });
+    const privateKeyPEM = privateKey.export({ type: "pkcs8", format: "pem" });
+    const encryptedRecoveryPhrase = crypto.publicEncrypt(
+      publicKeyPEM,
+      Buffer.from(passphrase)
+    );
+    const signature = crypto.sign("sha256", Buffer.from(passphrase), {
+      key: privateKeyPEM,
+      padding: crypto.constants.RSA_PKCS1_PSS_PADDING,
+    });
+
+    await user.updateOne({
+      $set: {
+        publicKey: publicKeyPEM,
+        passphrase: encryptedRecoveryPhrase.toString("base64"),
+        fingerPrint: signature.toString("base64"),
+      },
+    });
+    res.setHeader(
+      "Content-Disposition",
+      'attachment; filename="private-key.pem"'
+    );
+    return res.status(200).json({
+      message: "Public and private key added successfully",
+      publicKeyPEM,
+      privateKeyPEM,
+    });
+  } catch (error) {
+    return res.status(400).json({
+      message: `Error adding public and private key: ${error.message}`,
+    });
   }
 };
 
 // Serve private key file on secure endpoint
 exports.downloadPrivateKey = (req, res) => {
   const userId = req.params.userId;
-  const privateKeyPath = path.join(__dirname, 'privateKeys', `${userId}_private_key.pem`);
+  const privateKeyPath = path.join(
+    __dirname,
+    "privateKeys",
+    `${userId}_private_key.pem`
+  );
 
   if (fs.existsSync(privateKeyPath)) {
     res.download(privateKeyPath, `${userId}_private_key.pem`, (err) => {
       if (err) {
-        return res.status(500).json({ message: "Error downloading the private key." });
+        return res
+          .status(500)
+          .json({ message: "Error downloading the private key." });
       }
     });
   } else {
@@ -154,16 +144,11 @@ exports.downloadPrivateKey = (req, res) => {
   }
 };
 
-
 exports.uploadFile = async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ message: "No file uploaded" });
     }
-
-    // S3 upload parameters
-    console.log(process.env);
-
     const params = {
       Bucket: process.env.S3_BUCKET_NAME_FILE_STORAGE,
       Key: `uploads/${Date.now()}_${req.file.originalname}`,
@@ -171,20 +156,13 @@ exports.uploadFile = async (req, res) => {
       ContentType: req.file.mimetype,
       ACL: "public-read",
     };
-
-
-    // Upload file to S3
     const data = await s3.upload(params).promise();
-
-    // Save file URL to the user's document
     const user = await User.findById(req.user._id);
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
-
     user.userImage = data.Location; // Store the S3 URL in the userImage field
     await user.save();
-
     res.status(200).json({
       message: "File uploaded and user image updated successfully",
       url: data.Location,
@@ -198,19 +176,21 @@ exports.uploadFile = async (req, res) => {
 };
 // Confirm email endpointre
 exports.confirmEmail = async (req, res) => {
-  const { email = "johndoe@yopmail.com", confirmationCode } = req.body;
+  const { email, confirmationCode } = req.body;
 
   try {
     const user = await User.findOneAndUpdate(
-      { email, confirmationCode },
+      { email },
       {
         $set: { emailConfirmed: true, confirmationCode: null },
       },
-      { new: true }  // Return the modified document
+      { new: true } // Return the modified document
     );
 
     if (!user) {
-      return res.status(400).send({ message: "Invalid email or confirmation code" });
+      return res
+        .status(400)
+        .send({ message: "Invalid email or confirmation code" });
     }
 
     const token = user.generateAuthToken();
@@ -270,7 +250,7 @@ exports.updateProfile = async (req, res) => {
   const allowedUpdates = [
     "name",
     "email",
-    "billingAddress",
+    "address",
     "state",
     "phone",
     "postalCode",
@@ -357,7 +337,7 @@ exports.resetPassword = async (req, res) => {
       `,
     };
 
-    // await sendEmail(mailOptions);
+    await sendEmail(mailOptions);
 
     res.status(200).send({
       message: "Password reset link sent successfully",
@@ -500,7 +480,7 @@ exports.sendInvitation = async (req, res) => {
     };
 
     // Send the email using the configured transporter
-    // await sendEmail(mailOptions);
+    await sendEmail(mailOptions);
 
     res.status(200).json({ message: "Invitation sent successfully" });
   } catch (error) {
@@ -564,7 +544,7 @@ exports.resendInvitation = async (req, res) => {
       `,
     };
 
-    // await sendEmail(mailOptions);
+    await sendEmail(mailOptions);
 
     res.status(200).json({ message: "Invitation resent successfully" });
   } catch (error) {
@@ -591,7 +571,7 @@ exports.logout = async (req, res) => {
 };
 
 exports.changePassword = async (req, res) => {
-  const userId = req.params.id; // Extracted from auth middleware
+  const param = req.params.param; // Extracted from auth middleware
   const { confirmPassword, password } = req.body;
 
   if (confirmPassword !== password) {
@@ -604,9 +584,22 @@ exports.changePassword = async (req, res) => {
     // Find the user
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
-    const user = await User.findByIdAndUpdate(userId, {
-      password: hashedPassword,
-    });
+    const user = !mongoose.Types.ObjectId.isValid(param)
+      ? await User.findOneAndUpdate(
+        {
+          email: param,
+        },
+        {
+          $set: {
+            password: hashedPassword,
+          },
+        }
+      )
+      : await User.findByIdAndUpdate(param, {
+        $set: {
+          password: hashedPassword,
+        },
+      });
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -672,7 +665,7 @@ exports.acceptInvitation = async (req, res) => {
         </p>
       `,
     };
-    // await sendEmail(mailOptions);
+    await sendEmail(mailOptions);
 
     res.status(200).json({
       message: "Invitation accepted and verification code sent successfully",
@@ -822,7 +815,7 @@ exports.loginUser = async (req, res) => {
           `,
         };
 
-        // await sendEmail(mailOptions);
+        await sendEmail(mailOptions);
 
         res.status(200).send({
           message: "MFA code sent via email",
@@ -835,15 +828,7 @@ exports.loginUser = async (req, res) => {
       else if (user.mfaMethod === "sms") {
         try {
           const mfaCode = generateMFA(); // Assuming this is the method to generate the MFA code
-
-          // Sending SMS using Twilio
-          await client.messages.create({
-            body: `Your MFA code is: ${mfaCode}`,
-            from: process.env.TWILIO_PHONE_NUMBER, // From a Twilio phone number
-            to: user.phone, // To the user's phone number
-          });
-
-          // Send response after successfully sending the SMS
+          await sendSms(mfaCode, user);
           res.status(200).send({
             message: "MFA code sent via SMS",
             userId: user._id,
@@ -904,7 +889,7 @@ exports.resendConfirmationCode = async (req, res) => {
     `,
   };
 
-  // await sendEmail(mailOptions);
+  await sendEmail(mailOptions);
   await user.save();
   res.status(201).send({
     message: `Resend Email Confirmation code send to your mail`,
@@ -926,12 +911,12 @@ exports.sendMagicLink = async (req, res) => {
     const magicLink = `${process.env.FRONTEND_URL}/auth/magic-link?token=${token}`;
 
     // Send magic link via email
-    // await sendEmail({
-    //   from: "safepassvault@gmail.com",
-    //   to: email,
-    //   subject: "Your SafePassVault Magic Link",
-    //   html: `<p>Click the link below to log in:</p><a href="${magicLink}">Login to SafePassVault</a>`,
-    // });
+    await sendEmail({
+      from: "safepassvault@gmail.com",
+      to: email,
+      subject: "Your SafePassVault Magic Link",
+      html: `<p>Click the link below to log in:</p><a href="${magicLink}">Login to SafePassVault</a>`,
+    });
 
     res.status(200).json({ message: "Magic link sent to your email." });
   } catch (error) {
@@ -967,7 +952,7 @@ exports.resendMagicLink = async (req, res) => {
     }
 
     // Generate a new magic link token
-    const expiresIn = '15m';
+    const expiresIn = "15m";
 
     // Generate a token with user ID as payload
     const token = jwt.sign(
@@ -977,20 +962,28 @@ exports.resendMagicLink = async (req, res) => {
     );
     await sendMagicLinkEmail(email, token); // Use your email sending logic
 
-    res.status(200).send({ message: 'Magic link sent' });
+    res.status(200).send({ message: "Magic link sent" });
   } catch (error) {
     res.status(500).send({ message: "Error resending magic link" });
   }
-}
+};
 
 exports.saveSSOSettings = async (req, res) => {
   const {
-    provider, loginUrl, redirectUrl, clientId, clientSecret, tenantId, secretExpiry, scopes, additionalSettings
+    provider,
+    loginUrl,
+    redirectUrl,
+    clientId,
+    clientSecret,
+    tenantId,
+    secretExpiry,
+    scopes,
+    additionalSettings,
   } = req.body;
 
   try {
     const ssoSettings = await SSOSettings.findOneAndUpdate(
-      { provider },  // Find by provider type to allow updates
+      { provider }, // Find by provider type to allow updates
       {
         provider,
         loginUrl,
@@ -1000,77 +993,22 @@ exports.saveSSOSettings = async (req, res) => {
         tenantId,
         secretExpiry,
         scopes,
-        additionalSettings
+        additionalSettings,
       },
       { new: true, upsert: true } // Create if doesn't exist, otherwise update
     );
 
-    res.status(200).json({ message: `${provider} SSO settings saved successfully`, ssoSettings });
+    res.status(200).json({
+      message: `${provider} SSO settings saved successfully`,
+      ssoSettings,
+    });
   } catch (error) {
     console.error(`Error saving ${provider} SSO settings:`, error);
-    res.status(500).json({ message: `Failed to save ${provider} SSO settings`, error });
+    res
+      .status(500)
+      .json({ message: `Failed to save ${provider} SSO settings`, error });
   }
 };
-
-// exports.recoverAccount = async (req, res) => {
-//   try {
-//     // Extract recovery data from request body
-//     const { email, recoveryPhrase, signature } = req.body;
-
-//     // Validate required fields
-//     if (!email || !recoveryPhrase || !signature) {
-//       return res.status(400).json({
-//         message: "Email, recovery phrase, and signature are required for recovery."
-//       });
-//     }
-
-//     // Retrieve user from the database using the email
-//     const user = await User.findOne({ email });
-
-//     if (!user) {
-//       return res.status(404).json({ message: "User not found." });
-//     }
-
-//     // Retrieve the user's public key and signature from the database
-//     const publicKey = user.publicKey;
-//     const storedSignature = Buffer.from(user.fingerPrint, 'base64'); // The stored signature (fingerprint)
-
-//     // Verify the signature using the public key
-//     const isSignatureValid = crypto.verify(
-//       "sha256",
-//       Buffer.from(recoveryPhrase), // Use the provided recovery phrase for verification
-//       {
-//         key: publicKey,
-//         padding: crypto.constants.RSA_PKCS1_PSS_PADDING
-//       },
-//       storedSignature
-//     );
-
-//     // If the signature doesn't match, return an error
-//     if (!isSignatureValid) {
-//       return res.status(400).json({ message: "Invalid recovery phrase or signature." });
-//     }
-
-//     // If signature is valid, proceed with recovery (e.g., resetting the password)
-//     const { newPassword } = req.body;
-
-//     if (!newPassword) {
-//       return res.status(400).json({ message: "New password is required for recovery." });
-//     }
-
-//     // Update user's password (remember to hash the password before saving)
-//     user.password = newPassword;
-//     await user.save();
-
-//     // Return success message
-//     return res.status(200).json({ message: "Account successfully recovered and password updated." });
-
-//   } catch (error) {
-//     // Handle any errors that occurred during the process
-//     return res.status(500).json({ message: `Error during account recovery: ${error.message}` });
-//   }
-// };
-
 // Step 1: Initiate account recovery
 exports.initiateRecovery = async (req, res) => {
   try {
@@ -1084,7 +1022,10 @@ exports.initiateRecovery = async (req, res) => {
 
     // Generate a temporary recovery token (valid for 15 minutes)
     const recoveryToken = crypto.randomBytes(32).toString("hex");
-    user.recoveryToken = crypto.createHash("sha256").update(recoveryToken).digest("hex");
+    user.recoveryToken = crypto
+      .createHash("sha256")
+      .update(recoveryToken)
+      .digest("hex");
     user.recoveryTokenExpiry = Date.now() + 15 * 60 * 1000; // 15 minutes
 
     // Save the token and expiry to the user's record
@@ -1104,19 +1045,23 @@ exports.initiateRecovery = async (req, res) => {
       `,
     };
 
-    // await sendEmail(mailOptions);
+    await sendEmail(mailOptions);
 
-    return res.status(200).json({ message: "Recovery email sent." });
+    return res
+      .status(200)
+      .json({ message: "Recovery email sent.", recoveryToken });
   } catch (error) {
-    return res.status(500).json({ message: `Error initiating recovery: ${error.message}` });
+    return res
+      .status(500)
+      .json({ message: `Error initiating recovery: ${error.message}` });
   }
 };
-
 
 // Step 2: Verify recovery token and encrypted recovery phrase
 exports.verifyRecovery = async (req, res) => {
   try {
-    const { email, recoveryToken, encryptedRecoveryPhrase, privateKeyPEM } = req.body;
+    const { email, recoveryToken, encryptedRecoveryPhrase, privateKeyPEM } =
+      req.body;
 
     // Find the user by email
     const user = await User.findOne({ email });
@@ -1125,44 +1070,56 @@ exports.verifyRecovery = async (req, res) => {
     }
 
     // Validate recovery token
-    const hashedToken = crypto.createHash("sha256").update(recoveryToken).digest("hex");
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(recoveryToken)
+      .digest("hex");
     // Uncomment and adjust logic for token expiry
-    // if (user.recoveryToken !== hashedToken || user.recoveryTokenExpiry < Date.now()) {
-    //   return res.status(400).json({ message: "Invalid or expired recovery token." });
-    // }
+    if (
+      user.recoveryToken !== hashedToken ||
+      user.recoveryTokenExpiry < Date.now()
+    ) {
+      return res
+        .status(400)
+        .json({ message: "Invalid or expired recovery token." });
+    }
 
     // Check if the private key is provided (You might want to store and retrieve private keys securely)
     if (!privateKeyPEM) {
-      return res.status(400).json({ message: "Private key is required for recovery." });
+      return res
+        .status(400)
+        .json({ message: "Private key is required for recovery." });
     }
 
     // Re-import the private key (assuming it's PEM format)
     const privateKey = crypto.createPrivateKey({
       key: privateKeyPEM.toString(), // Ensure this is a valid PEM string
-      format: 'pem',      // Specify the format explicitly
-      type: 'pkcs8',      // Private keys are usually PKCS8
+      format: "pem", // Specify the format explicitly
+      type: "pkcs8", // Private keys are usually PKCS8
     });
 
-    // Decrypt the encrypted recovery phrase
-    let decryptedRecoveryPhrase;
-    try {
-      decryptedRecoveryPhrase = crypto.privateDecrypt(
-        {
-          key: privateKey,
-          padding: crypto.constants.RSA_PKCS1_OAEP_PADDING, // Ensure this matches the encryption padding used
-        },
-        Buffer.from(encryptedRecoveryPhrase, "base64") // Convert from base64 to Buffer
-      ).toString(); // Convert the decrypted buffer into a string (recovery phrase)
+    /* let decryptedRecoveryPhrase;try {
+      decryptedRecoveryPhrase = crypto
+        .privateDecrypt(
+          {
+            key: privateKey,
+            padding: crypto.constants.RSA_PKCS1_OAEP_PADDING, // Ensure this matches the encryption padding used
+          },
+          Buffer.from(encryptedRecoveryPhrase, "base64") // Convert from base64 to Buffer
+        )
+        .toString(); // Convert the decrypted buffer into a string (recovery phrase)
 
-      console.log('Decrypted Recovery Phrase:', decryptedRecoveryPhrase); // For debugging purposes
+      console.log("Decrypted Recovery Phrase:", decryptedRecoveryPhrase); // For debugging purposes
     } catch (decryptionError) {
-      return res.status(400).json({ message: "Invalid private key or recovery phrase." });
-    }
+      return res
+        .status(400)
+        .json({ message: "Invalid private key or recovery phrase." });
+    }*/
 
     // Verify the decrypted recovery phrase with the stored signature
     const isVerified = crypto.verify(
       "sha256",
-      Buffer.from(decryptedRecoveryPhrase),
+      Buffer.from(encryptedRecoveryPhrase),
       {
         key: user.publicKey, // Use the stored public key for verification
         padding: crypto.constants.RSA_PKCS1_PSS_PADDING,
@@ -1171,20 +1128,24 @@ exports.verifyRecovery = async (req, res) => {
     );
 
     if (!isVerified) {
-      return res.status(400).json({ message: "Recovery phrase verification failed." });
+      return res
+        .status(400)
+        .json({ message: "Recovery phrase verification failed." });
     }
 
     // Success: Allow the user to reset their password or perform other recovery actions
     return res.status(200).json({
-      message: "Recovery verified successfully. You can now reset your account.",
-      recoveryPhrase: decryptedRecoveryPhrase, // Optional: send only if necessary
+      message:
+        "Recovery verified successfully. You can now reset your account.",
+      passphrase: encryptedRecoveryPhrase, // Optional: send only if necessary
     });
   } catch (error) {
-    console.log('Error in recovery verification:', error);
-    return res.status(500).json({ message: `Error verifying recovery: ${error.message}` });
+    console.log("Error in recovery verification:", error);
+    return res
+      .status(500)
+      .json({ message: `Error verifying recovery: ${error.message}` });
   }
 };
-
 
 exports.setUp2FA = async (req, res) => {
   const { email } = req.body;

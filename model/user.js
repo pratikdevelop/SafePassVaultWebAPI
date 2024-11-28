@@ -1,9 +1,7 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const speakeasy = require("speakeasy"); // For TOTP generation
-const crypto = require("crypto"); // For random generation
-const bip39 = require("bip39"); // For recovery phrase (mnemonic) generation
+const Folder = require("../model/folder");
 
 // Main User Schema
 const userSchema = new mongoose.Schema({
@@ -29,9 +27,6 @@ const userSchema = new mongoose.Schema({
     type: String,
   },
   password: {
-    type: String,
-  },
-  passphrase: {
     type: String,
   },
   emailConfirmed: {
@@ -71,7 +66,7 @@ const userSchema = new mongoose.Schema({
   totpSecret: {
     type: String,
   },
-  billingAddress: { type: String },
+  address: { type: String },
   city: { type: String },
   state: { type: String },
   postalCode: { type: String },
@@ -96,24 +91,20 @@ const userSchema = new mongoose.Schema({
   publicKey: {
     type: String,
   },
-  privateKey: {
-    type: String,
-  },
-  recoveryPhrase: {
+  passphrase: {
     type: String,
   },
   fingerPrint: {
     type: String,
   },
-  recoveryTokenExpiry:{
-    type:Date,
-    default:Date.now
+  recoveryTokenExpiry: {
+    type: Date,
+    default: Date.now
   },
   recoveryToken: {
     type: String,
-    
-  }
 
+  }
 });
 
 // Password hashing middleware
@@ -127,26 +118,9 @@ userSchema.pre("save", async function (next) {
     const salt = await bcrypt.genSalt(12);
     this.password = await bcrypt.hash(this.password, salt);
   }
-
-  if (this.isModified("passphrase")) {
-    const salt = await bcrypt.genSalt(12);
-    this.passphrase = await bcrypt.hash(this.passphrase, salt);
-  }
-
   next();
 });
 
-
-const generateEncryptionKey = async () => {
-  return await crypto.subtle.generateKey(
-    {
-      name: "AES-GCM", // Using AES-GCM encryption algorithm
-      length: 256, // 256-bit key length
-    },
-    true, // The key is extractable, so we can use it for encryption/decryption
-    ["encrypt", "decrypt"] // The key can be used for encryption and decryption
-  );
-}
 // Generate auth token
 userSchema.methods.generateAuthToken = function () {
   const token = jwt.sign({ _id: this._id }, process.env.SECRET_KEY);
@@ -178,41 +152,23 @@ userSchema.methods.verifyResetToken = function (token, user) {
   return isMatch && !isExpired;
 };
 
-// TOTP Methods
-userSchema.methods.generateTotpSecret = function () {
-  const secret = speakeasy.generateSecret();
-  this.totpSecret = secret.base32; // Save base32 secret for TOTP verification
-  return secret;
-};
+userSchema.methods.createDefaultFolder = async function (userId) {
+  const folderTypes = [
+    "passwords",
+    "notes",
+    "cards",
+    "proof",
+    "files",
+    "address",
+  ];
+  const folders = folderTypes.map((type) => ({
+    user: userId,
+    name: `${type.charAt(0).toUpperCase() + type.slice(1)} Folder`,
+    type: type,
+    isSpecial: true,
+  }));
 
-userSchema.methods.verifyTotpCode = function (token) {
-  return speakeasy.totp.verify({
-    secret: this.totpSecret,
-    encoding: "base32",
-    token,
-  });
-};
+  await Folder.insertMany(folders);
 
-// Method to generate recovery phrase (mnemonic)
-userSchema.methods.encryptRecoveryPhrase = function () {
-  const cipher = crypto.createCipher('aes-256-cbc', encryptionKey);
-  let encrypted = cipher.update(this.recoveryPhrase, 'utf8', 'hex');
-  encrypted += cipher.final('hex');
-  this.recoveryPhrase = encrypted; // Store the encrypted recovery phrase
-};
-
-// Decrypt the recovery phrase when retrieving it
-userSchema.methods.decryptRecoveryPhrase = function () {
-  const decipher = crypto.createDecipher('aes-256-cbc', encryptionKey);
-  let decrypted = decipher.update(this.recoveryPhrase, 'hex', 'utf8');
-  decrypted += decipher.final('utf8');
-  return decrypted; // Return the decrypted recovery phrase
-};
-
-// Example: Method to generate and save recovery phrase (mnemonic)
-userSchema.methods.generateRecoveryPhrase = function () {
-  const recoveryPhrase = bip39.generateMnemonic(); // Generate a 12-word mnemonic
-  this.recoveryPhrase = recoveryPhrase; // Store the mnemonic (will be encrypted when saved)
-  return recoveryPhrase;
-};
+}
 module.exports = mongoose.model("User", userSchema);

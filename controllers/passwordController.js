@@ -8,7 +8,7 @@ const Tag = require("../model/tag");
 const Comment = require("../model/comment");
 const logger = require("../config/logger"); // Adjust the path as needed
 const crypto = require('crypto');
-// const { sendEmail } = require("../utlis/email"); // Import email sender function
+const { sendEmail } = require("../utlis/email"); // Import email sender function
 const { encrypt } = require('../utlis/common')
 // Function to handle incoming share request
 const fs = require('fs-extra');
@@ -591,7 +591,7 @@ exports.handleShareRequest = async (req, res) => {
     };
 
     // 9. Send the email
-    // await sendEmail(mailOptions);
+    await sendEmail(mailOptions);
 
     // 10. Respond with success
     res.status(200).json({ message: 'Email sent successfully' });
