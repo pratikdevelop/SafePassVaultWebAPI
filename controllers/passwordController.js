@@ -591,7 +591,7 @@ exports.handleShareRequest = async (req, res) => {
     };
 
     // 9. Send the email
-    await sendEmail(mailOptions);
+     await sendEmail(mailOptions);
 
     // 10. Respond with success
     res.status(200).json({ message: 'Email sent successfully' });

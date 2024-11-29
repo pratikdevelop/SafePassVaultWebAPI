@@ -3,4 +3,4 @@
 combined.log
 error.log
 /controllers/temp-csv
-.env
+..env
