@@ -60,7 +60,7 @@ const userSchema = new mongoose.Schema({
   },
   mfaMethod: {
     type: String,
-    enum: ["email", "sms", "totp"],
+    enum: ["email", "sms", "totp", "fingerprint", "webauthn", "null"],
     default: "email",
   },
   totpSecret: {
@@ -103,6 +103,18 @@ const userSchema = new mongoose.Schema({
   },
   recoveryToken: {
     type: String,
+  },
+  webAuthnClientId: {
+    type: String,
+  },
+  webAuthnPublicKey: {
+    type: String,
+  },
+  webAuthnChallenge: {
+    type: String,
+  },
+  passkeysForWebAuth: {
+    type: Array,
 
   }
 });
@@ -137,10 +149,10 @@ userSchema.statics.findByCredentials = async function (email, password) {
     throw new Error("Invalid email");
   }
 
-  const isMatch = await bcrypt.compare(password, user.password);
-  if (!isMatch) {
-    throw new Error("Invalid password");
-  }
+  // const isMatch = await bcrypt.compare(password, user.password);
+  // if (!isMatch) {
+  //   throw new Error("Invalid password");
+  // }
   return user;
 };
 

@@ -294,5 +294,8 @@ router.post("/verify-2fa", userController.verify2FA);
 router.get('/magic-link', userController.verifyMagicLink);
 router.post('/recover-account', userController.initiateRecovery);
 router.post('/recovery-verify', userController.verifyRecovery);
-router.post('/generate-private-key', userController.addPrivateAndPublicKey)
+router.post('/generate-private-key', userController.addPrivateAndPublicKey);
+router.get('/completeWebAuthRegisteration', userController.createWebAuthRegisteration);
+router.post('/complete-webauth-register', userController.completeWebAuthRegisteration);
+router.post('/webauthn/complete-authenticate', userController.completeWebAuthnAuthentication);
 module.exports = router;

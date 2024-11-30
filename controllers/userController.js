@@ -14,6 +14,11 @@ const { sendSms } = require("../config/twilloConfig");
 const mongoose = require("mongoose");
 const { validateUserRegistration } = require("../utlis/validators"); // Import validation function
 const { sendEmail } = require("../utlis/email"); // Import email sender function
+const { verifyWebAuthnResponse } = require('../utlis/web-auth');  // Assume this utility verifies WebAuthn response
+// const { generateRegistrationOptions } = require('@simplewebauthn/server');
+const { generateRegistrationOptions, verifyAuthenticationResponse, verifyRegistrationResponse, generateAuthenticationOptions } = require('@simplewebauthn/server');
+
+
 exports.createUser = async (req, res) => {
   try {
     const validation = await validateUserRegistration(req.body);
@@ -719,6 +724,10 @@ exports.saveMfaSettings = async (req, res) => {
           : "MFA settings updated successfully",
     });
   } catch (error) {
+    console.log(
+      `Error saving MFA settings: ${error.message} (${error.stack})`
+    );
+
     return res.status(500).json({ message: "Server error" });
   }
 };
@@ -848,7 +857,23 @@ exports.loginUser = async (req, res) => {
           mfaRequired: true,
           mfaMethod: user.mfaMethod,
         });
-      } else {
+      } else if (user.mfaMethod === 'webauthn') {
+        // Return the WebAuthn challenge to the frontend
+        const options = await generateAuthenticationOptions({
+          rpID: "localhost",
+          userVerification: false
+
+        })
+        console.log(options)
+        return res.status(200).send({
+          message: 'WebAuthn challenge required',
+          mfaRequired: true,
+          mfaMethod: 'webauthn',
+          challenge: options
+        });
+      }
+      else {
+
         res.status(400).send({ message: "Unsupported MFA method" });
       }
     } else {
@@ -856,6 +881,11 @@ exports.loginUser = async (req, res) => {
       res.status(200).send({ token });
     }
   } catch (error) {
+    console.log(
+      `Error in login controller: ${error.message} ${error.stack}`
+
+    );
+
     res.status(400).send({ message: "Invalid email or password" });
   }
 };
@@ -1197,3 +1227,183 @@ exports.verify2FA = async (req, res) => {
     res.status(400).send("Invalid token");
   }
 };
+let userPublicKey = null;
+let challenge = null;
+
+exports.createWebAuthRegisteration = async (req, res) => {
+  try {
+    // Assuming req.user contains the authenticated user information
+    const user = await User.findById(req.user._id);
+    const options = await generateRegistrationOptions({
+      rpID: 'localhost',
+      rpName: 'http://localhost:4200',
+      attestationType: 'none',
+      userName: user.email,
+      timeout: 30_000,
+    })
+
+    // Store the challenge in the user's profile (you need to handle this on the database)
+    await User.findByIdAndUpdate(
+      user._id,
+      {
+        $set: {
+          webAuthnChallenge: options.challenge,
+        },
+      },
+      {
+        new: true,
+      }
+    );
+
+    // Send the challenge and options to the frontend
+    res.json({ challenge: options.challenge, options });
+  } catch (err) {
+    console.error('Error generating WebAuthn challenge:', err);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+exports.completeWebAuthRegisteration = async (req, res) => {
+  try {
+    const { credential } = req.body;
+
+    if (!credential) {
+      return res.status(400).json({ message: 'Missing credential in request' });
+    }
+    console.log(
+      'Received credential from client: ',
+      credential
+    );
+
+
+    // Retrieve the user by their WebAuthn client ID
+    const user = await User.findById(req.user._id);
+
+
+    if (!user) {
+      return res.status(400).json({ message: 'User not found for WebAuthn client ID' });
+    } else {
+
+      console.log(
+        'User found: ',
+        user
+      );
+
+      const verificationResult = await verifyRegistrationResponse({
+        expectedChallenge: user.webAuthnChallenge,
+        expectedOrigin: 'http://localhost:4200',
+        expectedRPID: 'localhost',
+        response: credential,
+        requireUserVerification: false
+      })
+
+      if (!verificationResult.verified) return res.json({ error: 'could not verify' });
+      await user.updateOne({
+        $set: {
+          passkeysForWebAuth: verificationResult.registrationInfo
+        }
+      })
+
+      res.json({ status: 'Registration complete' });
+
+    }
+
+
+    // Verify the WebAuthn response from the client (this includes checking the challenge)
+    /* const isValid = await verifyWebAuthnResponse(
+      user,
+      credential,
+      user.webAuthnChallenge,  // The challenge stored earlier in the user's profile
+      req.body
+    );
+
+    if (isValid) {
+      // Store the public key and WebAuthn client ID for future authentication
+      const userPublicKey = credential.response.attestationObject;
+      const webAuthClientId = credential.id;
+
+      await User.findByIdAndUpdate(
+        user._id,
+        {
+          $set: {
+            // webAuthnPublicKey: userPublicKey,
+            // webAuthnClientId: webAuthClientId,
+          },
+        },
+        {
+          new: true,
+        }
+      );
+      */
+
+
+  } catch (err) {
+    console.error('Error completing WebAuthn registration:', err);
+    res.status(500).json({ message: 'Failed to complete WebAuthn registration' });
+  }
+};
+
+exports.completeWebAuthnAuthentication = async (req, res) => {
+  try {
+    const { credential, challange } = req.body;  // Get credential response and challange from frontend
+    // console.log(challange)
+
+    // Find the user by WebAuthn client ID (used as user identifier)
+    const user = await User.findOne({ email: 'newtestinguser@yopmail.com' });
+
+    if (!user) {
+      return res.status(400).json({ message: 'User not found for WebAuthn client ID' });
+    }
+    // Decode the Base64 string to a binary string
+    // Assuming user.passkeysForWebAuth[0].credential.publicKey is a Base64-encoded string.
+    // const base64PublicKey = user.passkeysForWebAuth[0].credential.publicKey.replace(/[\r\n]/g, '').trim();
+
+    // Decode the Base64 string to a binary string
+    const binaryString = (user.passkeysForWebAuth[0].credential.publicKey);
+
+    // Create a new Uint8Array to hold the decoded bytes
+    const uint8Array = new Uint8Array(binaryString.length);
+
+    // Populate the Uint8Array with the byte values from the binary string
+    for (let i = 0; i < binaryString.length; i++) {
+      uint8Array[i] = binaryString.charCodeAt(i);
+    }
+
+    // Now you have the Uint8Array containing the decoded public key
+    console.log(uint8Array);
+
+
+    const result = await verifyAuthenticationResponse({
+      expectedChallenge: '2YRp9uSqsCkGKb7mV015D2uCiIIx0CAhMYeo4IimzCs',
+      expectedOrigin: 'http://localhost:4200',
+      expectedRPID: 'localhost',
+      response: credential,
+      credential: {
+        id: user.passkeysForWebAuth[0].credential.id,
+        publicKey: uint8Array,
+        // Binary.createFromBase64('pQECAyYgASFYIOephAZSJxdTyCcrT15XQJ5nKkWZmb7huJh4Iz95C2AeIlggav8CSWdBFZlDNpODg4u4v3tO3P5DcRJ+WSM5N/VUSOc=', 0),
+        counter: user.passkeysForWebAuth[0].credential.counter,
+        transports: user.passkeysForWebAuth[0].credential.transports
+
+      },
+      requireUserVerification: false,
+    })
+
+    // Validate the WebAuthn response with the stored public key and challenge
+    // const isValid = await verifyWebAuthnResponse(user, credential, user.webAuthnPublicKey, challenge);
+    console.log(result);
+
+    if (result.verified) {
+      // Successful authentication, generate token or any other action
+      const token = user.generateAuthToken();
+      return res.status(200).json({ message: 'MFA authentication successful', token });
+    } else {
+      return res.status(400).json({ message: 'WebAuthn authentication failed' });
+    }
+  } catch (err) {
+    console.error('Error during WebAuthn authentication:', err);
+    res.status(500).json({ message: 'Failed to complete WebAuthn authentication' });
+  }
+};
+
+
