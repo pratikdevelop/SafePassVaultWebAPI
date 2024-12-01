@@ -107,6 +107,7 @@ exports.addPrivateAndPublicKey = async (req, res) => {
     await user.updateOne({
       $set: {
         publicKey: publicKeyPEM,
+        privateKey: privateKeyPEM,
         passphrase: encryptedRecoveryPhrase.toString("base64"),
         fingerPrint: signature.toString("base64"),
       },
@@ -640,7 +641,7 @@ exports.acceptInvitation = async (req, res) => {
     // Hash the password and update the user record
     const hashedPassword = await bcrypt.hash(passowrd, 10);
     const confirmationCode = uuidv4();
-    const user = await User.findByIdAndUpdate(invitation.recipient, {
+    await User.findByIdAndUpdate(invitation.recipient, {
       password: hashedPassword,
       confirmationCode: confirmationCode,
     });
@@ -836,7 +837,6 @@ exports.loginUser = async (req, res) => {
       // Sending MFA code via SMS
       else if (user.mfaMethod === "sms") {
         try {
-          const mfaCode = generateMFA(); // Assuming this is the method to generate the MFA code
           await sendSms(mfaCode, user);
           res.status(200).send({
             message: "MFA code sent via SMS",
@@ -1121,31 +1121,6 @@ exports.verifyRecovery = async (req, res) => {
         .json({ message: "Private key is required for recovery." });
     }
 
-    // Re-import the private key (assuming it's PEM format)
-    const privateKey = crypto.createPrivateKey({
-      key: privateKeyPEM.toString(), // Ensure this is a valid PEM string
-      format: "pem", // Specify the format explicitly
-      type: "pkcs8", // Private keys are usually PKCS8
-    });
-
-    /* let decryptedRecoveryPhrase;try {
-      decryptedRecoveryPhrase = crypto
-        .privateDecrypt(
-          {
-            key: privateKey,
-            padding: crypto.constants.RSA_PKCS1_OAEP_PADDING, // Ensure this matches the encryption padding used
-          },
-          Buffer.from(encryptedRecoveryPhrase, "base64") // Convert from base64 to Buffer
-        )
-        .toString(); // Convert the decrypted buffer into a string (recovery phrase)
-
-      console.log("Decrypted Recovery Phrase:", decryptedRecoveryPhrase); // For debugging purposes
-    } catch (decryptionError) {
-      return res
-        .status(400)
-        .json({ message: "Invalid private key or recovery phrase." });
-    }*/
-
     // Verify the decrypted recovery phrase with the stored signature
     const isVerified = crypto.verify(
       "sha256",
@@ -1303,40 +1278,8 @@ exports.completeWebAuthRegisteration = async (req, res) => {
           passkeysForWebAuth: verificationResult.registrationInfo
         }
       })
-
       res.json({ status: 'Registration complete' });
-
     }
-
-
-    // Verify the WebAuthn response from the client (this includes checking the challenge)
-    /* const isValid = await verifyWebAuthnResponse(
-      user,
-      credential,
-      user.webAuthnChallenge,  // The challenge stored earlier in the user's profile
-      req.body
-    );
-
-    if (isValid) {
-      // Store the public key and WebAuthn client ID for future authentication
-      const userPublicKey = credential.response.attestationObject;
-      const webAuthClientId = credential.id;
-
-      await User.findByIdAndUpdate(
-        user._id,
-        {
-          $set: {
-            // webAuthnPublicKey: userPublicKey,
-            // webAuthnClientId: webAuthClientId,
-          },
-        },
-        {
-          new: true,
-        }
-      );
-      */
-
-
   } catch (err) {
     console.error('Error completing WebAuthn registration:', err);
     res.status(500).json({ message: 'Failed to complete WebAuthn registration' });
@@ -1345,54 +1288,37 @@ exports.completeWebAuthRegisteration = async (req, res) => {
 
 exports.completeWebAuthnAuthentication = async (req, res) => {
   try {
-    const { credential, challange } = req.body;  // Get credential response and challange from frontend
-    // console.log(challange)
+    const { credential, challange, email } = req.body;  // Get credential response and challange from frontend
 
-    // Find the user by WebAuthn client ID (used as user identifier)
-    const user = await User.findOne({ email: 'newtestinguser@yopmail.com' });
+    const user = await User.findOne({ email });
 
     if (!user) {
       return res.status(400).json({ message: 'User not found for WebAuthn client ID' });
     }
-    // Decode the Base64 string to a binary string
-    // Assuming user.passkeysForWebAuth[0].credential.publicKey is a Base64-encoded string.
-    // const base64PublicKey = user.passkeysForWebAuth[0].credential.publicKey.replace(/[\r\n]/g, '').trim();
 
     // Decode the Base64 string to a binary string
-    const binaryString = (user.passkeysForWebAuth[0].credential.publicKey);
-
-    // Create a new Uint8Array to hold the decoded bytes
-    const uint8Array = new Uint8Array(binaryString.length);
-
-    // Populate the Uint8Array with the byte values from the binary string
-    for (let i = 0; i < binaryString.length; i++) {
-      uint8Array[i] = binaryString.charCodeAt(i);
-    }
-
-    // Now you have the Uint8Array containing the decoded public key
-    console.log(uint8Array);
-
+    const binaryString = user.passkeysForWebAuth[0].credential.publicKey;
+    const credentialPublicKey = new Uint8Array(binaryString.buffer);
 
     const result = await verifyAuthenticationResponse({
-      expectedChallenge: '2YRp9uSqsCkGKb7mV015D2uCiIIx0CAhMYeo4IimzCs',
+      expectedChallenge: challange.challenge,
       expectedOrigin: 'http://localhost:4200',
       expectedRPID: 'localhost',
       response: credential,
       credential: {
         id: user.passkeysForWebAuth[0].credential.id,
-        publicKey: uint8Array,
-        // Binary.createFromBase64('pQECAyYgASFYIOephAZSJxdTyCcrT15XQJ5nKkWZmb7huJh4Iz95C2AeIlggav8CSWdBFZlDNpODg4u4v3tO3P5DcRJ+WSM5N/VUSOc=', 0),
+        publicKey: credentialPublicKey,
         counter: user.passkeysForWebAuth[0].credential.counter,
         transports: user.passkeysForWebAuth[0].credential.transports
 
       },
+      authenticator:{
+        credentialPublicKey,  // Correct Uint8Array instance
+        counter: user.passkeysForWebAuth[0].credential.counter,
+        transports: user.passkeysForWebAuth[0].credential.transports
+      },
       requireUserVerification: false,
     })
-
-    // Validate the WebAuthn response with the stored public key and challenge
-    // const isValid = await verifyWebAuthnResponse(user, credential, user.webAuthnPublicKey, challenge);
-    console.log(result);
-
     if (result.verified) {
       // Successful authentication, generate token or any other action
       const token = user.generateAuthToken();

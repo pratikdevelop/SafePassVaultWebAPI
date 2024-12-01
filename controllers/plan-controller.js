@@ -1,4 +1,4 @@
-// const {paypalClient} = require("../paypalClient");
+const {paypalClient} = require("../config/paypalClient");
 const Subscription = require('../model/subscription')
 const paypal = require('@paypal/checkout-server-sdk')
 const Plan = require('../model/plan'); // Adjust the path as necessary
@@ -41,31 +41,31 @@ exports.createSubscriptions =  async(req, res) => {
   const { userId, plan, paypalOrderId } = req.body;
 
   // Verify the order details and create the subscription
-  // const request = new paypal.orders.OrdersGetRequest(paypalOrderId);
+  const request = new paypal.orders.OrdersGetRequest(paypalOrderId);
 
   try {
-    // const response = await paypalClient().execute(request);
-    // const order = response.result;
+    const response = await paypalClient().execute(request);
+    const order = response.result;
 
     // Here, validate order amount, status, etc.
-    // if (order.status === 'COMPLETED') {
-    //   const newSubscription = new Subscription({
-    //     userId,
-    //     plan: plan.title,
-    //     paypalSubscriptionId: order.id, // Store PayPal order ID or subscription ID as needed
-    //     subscriptionStatus: order.status,
-    //     subscriptionStart: new Date(),
-    //     subscriptionExpiry: calculateExpiryDate(),
-    //   });
+    if (order.status === 'COMPLETED') {
+      const newSubscription = new Subscription({
+        userId,
+        plan: plan.title,
+        paypalSubscriptionId: order.id, // Store PayPal order ID or subscription ID as needed
+        subscriptionStatus: order.status,
+        subscriptionStart: new Date(),
+        subscriptionExpiry: calculateExpiryDate(),
+      });
 
-    //   await newSubscription.save();
-    //   res.status(201).json({
-    //     message: 'Subscription created successfully.',
-    //     subscriptionId: newSubscription.id,
-    //   });
-    // } else {
-    //   res.status(400).json({ error: 'Order not completed' });
-    // }
+      await newSubscription.save();
+      res.status(201).json({
+        message: 'Subscription created successfully.',
+        subscriptionId: newSubscription.id,
+      });
+    } else {
+      res.status(400).json({ error: 'Order not completed' });
+    }
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -78,12 +78,33 @@ function calculateExpiryDate() {
   return expiryDate;
 }
  
-
 exports.getPlanDetails = async (planId) => {
   try {
-    const plan = await Subscription.findOne({userId: planId})    
-    return plan;
+    // Find the subscription plan associated with the user (using planId)
+    const subscriptionPlan = await Subscription.findOne({ userId: planId });
+    
+    if (!subscriptionPlan) {
+      throw new Error('Subscription plan not found.');
+    }
+
+    // Find the plan details based on the plan name
+    const planDetails = await Plan.findOne({
+      planName: subscriptionPlan.plan
+    });
+
+    if (!planDetails) {
+      throw new Error('Plan details not found.');
+    }
+
+    // Merge subscriptionPlan and planDetails objects into a new object
+    const newPlan = {
+      ...subscriptionPlan.toObject(), // Ensure it's a plain object (in case it's a Mongoose document)
+      ...planDetails.toObject() // Same for planDetails
+    };
+
+    return newPlan;
   } catch (error) {
+    console.error('Error fetching plan details:', error.message);
     throw error;
   }
 };

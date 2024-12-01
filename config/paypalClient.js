@@ -8,7 +8,7 @@ async function getClient() {
     paypal = new PayaplAPI({
       clientId: process.env.PAYPAL_CLIENT_ID, // Your PayPal client ID
       secret: process.env.PAYPAL_CLIENT_SECRET, // Your PayPal secret
-      log: true, // Log some information to the console
+      log: false,
     });
     await paypal.authenticate();
 
