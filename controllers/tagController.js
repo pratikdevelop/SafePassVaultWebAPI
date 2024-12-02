@@ -12,15 +12,23 @@ exports.createTag = async (req, res) => {
 };
 
 // Get all tags
-exports.getAllTags = async (req, res) => {
+exports.getAllTagsByType = async (req, res) => {
   try {
-    const tags = (await Tag.find()).map((tag) => {
+    const tags = (await Tag.find({
+      tagType: req.params.type,
+
+    })).map((tag) => {
       return {
         _id: tag._id,
         label: tag.name,
       };
     });
-    res.json(tags);
+    console.log(
+      "tags",
+      tags
+    );
+
+    res.status(200).json({ tags });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -70,8 +78,12 @@ exports.deleteTag = async (req, res) => {
 // Search for tags by name
 exports.searchTagsByName = async (req, res) => {
   try {
-    const { name } = req.params;
-    const tags = await Tag.find({ name: { $regex: new RegExp(name, "i") } });
+    const { name, type } = req.params;
+    const tags = await Tag.find({
+      name: { $regex: new RegExp(name, "i") },
+      type,
+      created_by: req.user._id
+    });
     res.json(tags);
   } catch (error) {
     res.status(500).json({ error: error.message });

@@ -1,6 +1,6 @@
-const {paypalClient} = require("../config/paypalClient");
+// const { paypalClient } = require("../config/paypalClient");
 const Subscription = require('../model/subscription')
-const paypal = require('@paypal/checkout-server-sdk')
+// const paypal = require('@paypal/checkout-server-sdk')
 const Plan = require('../model/plan'); // Adjust the path as necessary
 
 exports.getPlans = async (req, res) => {
@@ -35,40 +35,40 @@ exports.getPlans = async (req, res) => {
   }
 };
 
-  
 
-exports.createSubscriptions =  async(req, res) => {
-  const { userId, plan, paypalOrderId } = req.body;
 
-  // Verify the order details and create the subscription
-  const request = new paypal.orders.OrdersGetRequest(paypalOrderId);
+exports.createSubscriptions = async (req, res) => {
+  // const { userId, plan, paypalOrderId } = req.body;
 
-  try {
-    const response = await paypalClient().execute(request);
-    const order = response.result;
+  // // Verify the order details and create the subscription
+  // const request = new paypal.orders.OrdersGetRequest(paypalOrderId);
 
-    // Here, validate order amount, status, etc.
-    if (order.status === 'COMPLETED') {
-      const newSubscription = new Subscription({
-        userId,
-        plan: plan.title,
-        paypalSubscriptionId: order.id, // Store PayPal order ID or subscription ID as needed
-        subscriptionStatus: order.status,
-        subscriptionStart: new Date(),
-        subscriptionExpiry: calculateExpiryDate(),
-      });
+  // try {
+  //   const response = await paypalClient().execute(request);
+  //   const order = response.result;
 
-      await newSubscription.save();
-      res.status(201).json({
-        message: 'Subscription created successfully.',
-        subscriptionId: newSubscription.id,
-      });
-    } else {
-      res.status(400).json({ error: 'Order not completed' });
-    }
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+  //   // Here, validate order amount, status, etc.
+  //   if (order.status === 'COMPLETED') {
+  //     const newSubscription = new Subscription({
+  //       userId,
+  //       plan: plan.title,
+  //       paypalSubscriptionId: order.id, // Store PayPal order ID or subscription ID as needed
+  //       subscriptionStatus: order.status,
+  //       subscriptionStart: new Date(),
+  //       subscriptionExpiry: calculateExpiryDate(),
+  //     });
+
+  //     await newSubscription.save();
+  //     res.status(201).json({
+  //       message: 'Subscription created successfully.',
+  //       subscriptionId: newSubscription.id,
+  //     });
+  //   } else {
+  //     res.status(400).json({ error: 'Order not completed' });
+  //   }
+  // } catch (error) {
+  //   res.status(500).json({ error: error.message });
+  // }
 };
 
 // Helper function to calculate the subscription expiry date
@@ -77,12 +77,12 @@ function calculateExpiryDate() {
   expiryDate.setMonth(expiryDate.getMonth() + 1); // Assuming monthly subscriptions
   return expiryDate;
 }
- 
+
 exports.getPlanDetails = async (planId) => {
   try {
     // Find the subscription plan associated with the user (using planId)
     const subscriptionPlan = await Subscription.findOne({ userId: planId });
-    
+
     if (!subscriptionPlan) {
       throw new Error('Subscription plan not found.');
     }

@@ -6,7 +6,7 @@ const tagController = require('../controllers/tagController');
 router.post('/tag', tagController.createTag);
 
 // Get all tags
-router.get('/', tagController.getAllTags);
+router.get('/:type', tagController.getAllTagsByType);
 
 // Get a specific tag
 router.get('/:id', tagController.getTagById);
@@ -18,6 +18,6 @@ router.put('/:id', tagController.updateTag);
 router.delete('/:id', tagController.deleteTag);
 
 // Search for tags by name
-router.get('/search/:name', tagController.searchTagsByName);
+router.get('/search/:type/:name', tagController.searchTagsByName);
 
 module.exports = router;

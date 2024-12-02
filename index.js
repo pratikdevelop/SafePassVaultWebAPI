@@ -23,13 +23,20 @@ const ssoRoutes = require('./routes/ssoRoutes');
 const secretRoutes = require('./routes/secretRoutes');
 const WebAuthn = require('webauthn');
 const crypto = require('crypto');
+const User = require('./model/user');
 
 const folderRoutes = require('./routes/folderRoutes'); // Adjust the path as necessary
 const addressRoutes = require('./routes/addressRoutes'); // Import routes
+const user = require("./model/tag");
 const port = process.env.PORT || 3000;
 app.get("/", (req, res) => {
+  // user.deleteMany().then((res) => {
+  //   console.log(res);
+  // })
   res.send("Hello World");
+
 });
+
 app.use(cors());
 app.use(express.json());
 app.use(auth);

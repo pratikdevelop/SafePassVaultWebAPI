@@ -813,7 +813,7 @@ exports.loginUser = async (req, res) => {
           html: `
             <b>Hi ${user.name},</b>
             <p>We received a request to access your SafePassVault account. As an additional layer of security, please use the following Multi-Factor Authentication (MFA) code to proceed with your login:</p>
-            <p style="font-size: 18px; font-weight: bold; color: #333;">${mfaCode}</p>
+            <span style="font-size: 2rem; font-weight: extrabold; color: #333;">${mfaCode}</span>
             <p>To complete your login, enter this code in the required field. Note that this code will expire shortly, so be sure to use it as soon as possible.</p>
             <p>If you did not request this code or believe this message was sent in error, please contact our support team immediately at <a href="mailto:safePassVault@gmail.com">safePassVault@gmail.com</a>.</p>
             <p>Thank you for helping us keep your account secure.</p>
@@ -837,7 +837,7 @@ exports.loginUser = async (req, res) => {
       // Sending MFA code via SMS
       else if (user.mfaMethod === "sms") {
         try {
-          await sendSms(mfaCode, user);
+          // await sendSms(mfaCode, user);
           res.status(200).send({
             message: "MFA code sent via SMS",
             userId: user._id,
@@ -864,7 +864,6 @@ exports.loginUser = async (req, res) => {
           userVerification: false
 
         })
-        console.log(options)
         return res.status(200).send({
           message: 'WebAuthn challenge required',
           mfaRequired: true,
@@ -873,7 +872,6 @@ exports.loginUser = async (req, res) => {
         });
       }
       else {
-
         res.status(400).send({ message: "Unsupported MFA method" });
       }
     } else {
@@ -1312,7 +1310,7 @@ exports.completeWebAuthnAuthentication = async (req, res) => {
         transports: user.passkeysForWebAuth[0].credential.transports
 
       },
-      authenticator:{
+      authenticator: {
         credentialPublicKey,  // Correct Uint8Array instance
         counter: user.passkeysForWebAuth[0].credential.counter,
         transports: user.passkeysForWebAuth[0].credential.transports

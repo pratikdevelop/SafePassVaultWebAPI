@@ -113,8 +113,6 @@ exports.getFoldersByType = async (req, res) => {
 };
 
 exports.searchFolders = async (req, res) => {
-  console.log('bm,fmvfmv');
-
   try {
     const ownerId = req.user._id;
     const { searchTerm, type } = req.query;
@@ -126,11 +124,18 @@ exports.searchFolders = async (req, res) => {
 
 
     // Perform a case-insensitive search
-    const folders = await Folder.find({
+    const folders = (await Folder.find({
       name: { $regex: new RegExp(searchTerm, 'i') }, // Case-insensitive search
       type: type,
       user: ownerId // Ensure ownerId is valid ObjectId
-    }).exec(); // Ensure the query executes
+    })).map(
+      (folder) => {
+        return {
+          _id: folder._id,
+          label: folder.name,
+        };
+      }
+    );
 
     res.status(200).json(folders);
   } catch (error) {
