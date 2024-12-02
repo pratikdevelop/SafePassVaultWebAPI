@@ -14,10 +14,14 @@ const { sendSms } = require("../config/twilloConfig");
 const mongoose = require("mongoose");
 const { validateUserRegistration } = require("../utlis/validators"); // Import validation function
 const { sendEmail } = require("../utlis/email"); // Import email sender function
-const { verifyWebAuthnResponse } = require('../utlis/web-auth');  // Assume this utility verifies WebAuthn response
+const { verifyWebAuthnResponse } = require("../utlis/web-auth"); // Assume this utility verifies WebAuthn response
 // const { generateRegistrationOptions } = require('@simplewebauthn/server');
-const { generateRegistrationOptions, verifyAuthenticationResponse, verifyRegistrationResponse, generateAuthenticationOptions } = require('@simplewebauthn/server');
-
+const {
+  generateRegistrationOptions,
+  verifyAuthenticationResponse,
+  verifyRegistrationResponse,
+  generateAuthenticationOptions,
+} = require("@simplewebauthn/server");
 
 exports.createUser = async (req, res) => {
   try {
@@ -592,20 +596,20 @@ exports.changePassword = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, salt);
     const user = !mongoose.Types.ObjectId.isValid(param)
       ? await User.findOneAndUpdate(
-        {
-          email: param,
-        },
-        {
+          {
+            email: param,
+          },
+          {
+            $set: {
+              password: hashedPassword,
+            },
+          }
+        )
+      : await User.findByIdAndUpdate(param, {
           $set: {
             password: hashedPassword,
           },
-        }
-      )
-      : await User.findByIdAndUpdate(param, {
-        $set: {
-          password: hashedPassword,
-        },
-      });
+        });
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -725,9 +729,7 @@ exports.saveMfaSettings = async (req, res) => {
           : "MFA settings updated successfully",
     });
   } catch (error) {
-    console.log(
-      `Error saving MFA settings: ${error.message} (${error.stack})`
-    );
+    console.log(`Error saving MFA settings: ${error.message} (${error.stack})`);
 
     return res.status(500).json({ message: "Server error" });
   }
@@ -857,21 +859,19 @@ exports.loginUser = async (req, res) => {
           mfaRequired: true,
           mfaMethod: user.mfaMethod,
         });
-      } else if (user.mfaMethod === 'webauthn') {
+      } else if (user.mfaMethod === "webauthn") {
         // Return the WebAuthn challenge to the frontend
         const options = await generateAuthenticationOptions({
           rpID: "localhost",
-          userVerification: false
-
-        })
-        return res.status(200).send({
-          message: 'WebAuthn challenge required',
-          mfaRequired: true,
-          mfaMethod: 'webauthn',
-          challenge: options
+          userVerification: false,
         });
-      }
-      else {
+        return res.status(200).send({
+          message: "WebAuthn challenge required",
+          mfaRequired: true,
+          mfaMethod: "webauthn",
+          challenge: options,
+        });
+      } else {
         res.status(400).send({ message: "Unsupported MFA method" });
       }
     } else {
@@ -879,10 +879,7 @@ exports.loginUser = async (req, res) => {
       res.status(200).send({ token });
     }
   } catch (error) {
-    console.log(
-      `Error in login controller: ${error.message} ${error.stack}`
-
-    );
+    console.log(`Error in login controller: ${error.message} ${error.stack}`);
 
     res.status(400).send({ message: "Invalid email or password" });
   }
@@ -1208,12 +1205,12 @@ exports.createWebAuthRegisteration = async (req, res) => {
     // Assuming req.user contains the authenticated user information
     const user = await User.findById(req.user._id);
     const options = await generateRegistrationOptions({
-      rpID: 'localhost',
-      rpName: 'http://localhost:4200',
-      attestationType: 'none',
+      rpID: "localhost",
+      rpName: "http://localhost:4200",
+      attestationType: "none",
       userName: user.email,
       timeout: 30_000,
-    })
+    });
 
     // Store the challenge in the user's profile (you need to handle this on the database)
     await User.findByIdAndUpdate(
@@ -1231,8 +1228,8 @@ exports.createWebAuthRegisteration = async (req, res) => {
     // Send the challenge and options to the frontend
     res.json({ challenge: options.challenge, options });
   } catch (err) {
-    console.error('Error generating WebAuthn challenge:', err);
-    res.status(500).json({ message: 'Internal server error' });
+    console.error("Error generating WebAuthn challenge:", err);
+    res.status(500).json({ message: "Internal server error" });
   }
 };
 
@@ -1241,57 +1238,55 @@ exports.completeWebAuthRegisteration = async (req, res) => {
     const { credential } = req.body;
 
     if (!credential) {
-      return res.status(400).json({ message: 'Missing credential in request' });
+      return res.status(400).json({ message: "Missing credential in request" });
     }
-    console.log(
-      'Received credential from client: ',
-      credential
-    );
-
+    console.log("Received credential from client: ", credential);
 
     // Retrieve the user by their WebAuthn client ID
     const user = await User.findById(req.user._id);
 
-
     if (!user) {
-      return res.status(400).json({ message: 'User not found for WebAuthn client ID' });
+      return res
+        .status(400)
+        .json({ message: "User not found for WebAuthn client ID" });
     } else {
-
-      console.log(
-        'User found: ',
-        user
-      );
+      console.log("User found: ", user);
 
       const verificationResult = await verifyRegistrationResponse({
         expectedChallenge: user.webAuthnChallenge,
-        expectedOrigin: 'http://localhost:4200',
-        expectedRPID: 'localhost',
+        expectedOrigin: "http://localhost:4200",
+        expectedRPID: "localhost",
         response: credential,
-        requireUserVerification: false
-      })
+        requireUserVerification: false,
+      });
 
-      if (!verificationResult.verified) return res.json({ error: 'could not verify' });
+      if (!verificationResult.verified)
+        return res.json({ error: "could not verify" });
       await user.updateOne({
         $set: {
-          passkeysForWebAuth: verificationResult.registrationInfo
-        }
-      })
-      res.json({ status: 'Registration complete' });
+          passkeysForWebAuth: verificationResult.registrationInfo,
+        },
+      });
+      res.json({ status: "Registration complete" });
     }
   } catch (err) {
-    console.error('Error completing WebAuthn registration:', err);
-    res.status(500).json({ message: 'Failed to complete WebAuthn registration' });
+    console.error("Error completing WebAuthn registration:", err);
+    res
+      .status(500)
+      .json({ message: "Failed to complete WebAuthn registration" });
   }
 };
 
 exports.completeWebAuthnAuthentication = async (req, res) => {
   try {
-    const { credential, challange, email } = req.body;  // Get credential response and challange from frontend
+    const { credential, challange, email } = req.body; // Get credential response and challange from frontend
 
     const user = await User.findOne({ email });
 
     if (!user) {
-      return res.status(400).json({ message: 'User not found for WebAuthn client ID' });
+      return res
+        .status(400)
+        .json({ message: "User not found for WebAuthn client ID" });
     }
 
     // Decode the Base64 string to a binary string
@@ -1300,34 +1295,82 @@ exports.completeWebAuthnAuthentication = async (req, res) => {
 
     const result = await verifyAuthenticationResponse({
       expectedChallenge: challange.challenge,
-      expectedOrigin: 'http://localhost:4200',
-      expectedRPID: 'localhost',
+      expectedOrigin: "http://localhost:4200",
+      expectedRPID: "localhost",
       response: credential,
       credential: {
         id: user.passkeysForWebAuth[0].credential.id,
         publicKey: credentialPublicKey,
         counter: user.passkeysForWebAuth[0].credential.counter,
-        transports: user.passkeysForWebAuth[0].credential.transports
-
+        transports: user.passkeysForWebAuth[0].credential.transports,
       },
       authenticator: {
-        credentialPublicKey,  // Correct Uint8Array instance
+        credentialPublicKey, // Correct Uint8Array instance
         counter: user.passkeysForWebAuth[0].credential.counter,
-        transports: user.passkeysForWebAuth[0].credential.transports
+        transports: user.passkeysForWebAuth[0].credential.transports,
       },
       requireUserVerification: false,
-    })
+    });
     if (result.verified) {
       // Successful authentication, generate token or any other action
       const token = user.generateAuthToken();
-      return res.status(200).json({ message: 'MFA authentication successful', token });
+      return res
+        .status(200)
+        .json({ message: "MFA authentication successful", token });
     } else {
-      return res.status(400).json({ message: 'WebAuthn authentication failed' });
+      return res
+        .status(400)
+        .json({ message: "WebAuthn authentication failed" });
     }
   } catch (err) {
-    console.error('Error during WebAuthn authentication:', err);
-    res.status(500).json({ message: 'Failed to complete WebAuthn authentication' });
+    console.error("Error during WebAuthn authentication:", err);
+    res
+      .status(500)
+      .json({ message: "Failed to complete WebAuthn authentication" });
   }
 };
 
+exports.deleteOrganization = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const organization = await Organization.findByIdAndDelete(id);
+    if (!organization) {
+      return res.status(404).json({ message: "Organization not found" });
+    }
+    return res
+      .status(200)
+      .json({ message: "Organization deleted successfully" });
+  } catch (err) {
+    console.error("Error deleting organization:", err);
+    res.status(500).json({ message: "Failed to delete organization" });
+  }
+};
+exports.getOrganizationBYId = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const organization = await Organization.findById(id);
+    if (!organization) {
+      return res.status(404).json({ message: "Organization not found" });
+    }
+    return res.status(200).json({ organization });
+  } catch (err) {
+    console.error("Error fetching organization:", err);
+    res.status(500).json({ message: "Failed to fetch organization" });
+  }
+};
 
+exports.updateOrganization = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const organization = await Organization.findByIdAndUpdate(id, req.body, {
+      new: true,
+    });
+    if (!organization) {
+      return res.status(404).json({ message: "Organization not found" });
+    }
+    return res.status(200).json({ organization });
+  } catch (err) {
+    console.error("Error updating organization:", err);
+    res.status(500).json({ message: "Failed to update organization" });
+  }
+};

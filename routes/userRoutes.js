@@ -153,7 +153,7 @@ router.get("/verify-reset-link", userController.verifyResetLink);
  *         description: Organization created successfully.
  */
 router.post("/organization", userController.createOrganization);
-
+router.delete('/organization/:id', userController.deleteOrganization)
 /**
  * @swagger
  * /organizations:
@@ -165,6 +165,8 @@ router.post("/organization", userController.createOrganization);
  *         description: Successfully retrieved list of organizations.
  */
 router.get("/organizations", userController.getOrganizations);
+router.get('/organization/:id', userController.getOrganizationBYId);
+router.put('/organization/:id', userController.updateOrganization)
 
 /**
  * @swagger
