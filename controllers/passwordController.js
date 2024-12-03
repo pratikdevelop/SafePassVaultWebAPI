@@ -6,16 +6,14 @@ const SharedItem = require("../model/shareItem");
 const { parse } = require("json2csv");
 const Tag = require("../model/tag");
 const Comment = require("../model/comment");
-const logger = require("../config/logger"); // Adjust the path as needed
-const crypto = require('crypto');
-const { sendEmail } = require("../utlis/email"); // Import email sender function
-const { encrypt } = require('../utlis/common')
-// Function to handle incoming share request
+const logger = require("../config/logger");
+const { sendEmail } = require("../utlis/email");
 const fs = require('fs-extra');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const archiver = require('archiver');
 const csvDirectory = path.join(__dirname, 'temp-csv');
+const AuditLog = require('../model/Auditlogs');
 
 // Ensure the directory exists
 fs.ensureDirSync(csvDirectory);
@@ -169,6 +167,19 @@ exports.createPassword = async (req, res) => {
     const newPassword = new Password(req.body);
     const savedPassword = await newPassword.save();
 
+    // Log the action in the audit log
+    const auditLog = new AuditLog({
+      userId: req.user._id,
+      action: 'create',
+      entity: 'password',
+      entityId: savedPassword._id,
+      newValue: savedPassword.toObject(),
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent')
+    });
+
+    await auditLog.save();
+
     logger.info("Password created successfully", {
       passwordId: savedPassword._id,
       userId: req.user._id,
@@ -189,6 +200,18 @@ exports.deletePasswords = async (req, res) => {
   try {
     const ids = req.params.ids.split(",");
     const deletedCount = await Password.deleteMany({ _id: { $in: ids } });
+
+    // Log the delete action in the audit log
+    const auditLog = new AuditLog({
+      userId: req.user._id,
+      action: 'delete',
+      entity: 'password',
+      entityId: ids,
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent')
+    });
+
+    await auditLog.save();
 
     logger.info(`Deleting passwords`, {
       ids,
@@ -222,10 +245,25 @@ exports.updatePassword = async (req, res) => {
       return res.status(404).json({ message: "Password not found" });
     }
 
+    // Log the update action in the audit log
+    const auditLog = new AuditLog({
+      userId: req.user._id,
+      action: 'update',
+      entity: 'password',
+      entityId: updatedPassword._id,
+      oldValue: updatedPassword.toObject(), // store old values
+      newValue: req.body, // store new values
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent')
+    });
+
+    await auditLog.save();
+
     logger.info("Password updated successfully", {
       passwordId: req.params.id,
       userId: req.user._id,
     });
+
     res.json(updatedPassword);
   } catch (err) {
     logger.error("Error updating password", {
@@ -235,7 +273,6 @@ exports.updatePassword = async (req, res) => {
     res.status(500).json({ message: "Error updating password" });
   }
 };
-
 // Share a password
 exports.sharePassword = async (req, res) => {
   const passwordId = req.params.passwordId;
@@ -255,6 +292,19 @@ exports.sharePassword = async (req, res) => {
       { shareToken, shareExpiration: expirationDate }
     );
     const shareLink = `http://your-domain/api/passwords/share/${passwordId}/${shareToken}`;
+
+    // Log the share action in the audit log
+    const auditLog = new AuditLog({
+      userId: req.user._id,
+      action: 'share',
+      entity: 'password',
+      entityId: passwordId,
+      newValue: { shareLink, expirationDate },
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent')
+    });
+
+    await auditLog.save();
 
     logger.info("Password shared successfully", {
       passwordId,
@@ -359,6 +409,19 @@ exports.exportAllPasswords = async (req, res) => {
       .lean();
     const csv = parse(passwords);
 
+    // Log the export action
+    const auditLog = new AuditLog({
+      userId: req.user._id,
+      action: 'access',
+      entity: 'password',
+      entityId: exportPasswordsIds,
+      newValue: { count: passwords.length },
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent')
+    });
+
+    await auditLog.save();
+
     res.header("Content-Type", "text/csv");
     res.header("Content-Disposition", "attachment; filename=passwords.csv");
     logger.log({
@@ -402,6 +465,21 @@ exports.addTag = async (req, res) => {
     if (!password.tags.includes(tag._id)) {
       password.tags.push(tag._id);
       await password.save();
+
+      // Log the tag addition in the audit log
+      const auditLog = new AuditLog({
+        userId: req.user._id,
+        action: 'update',
+        entity: 'password',
+        entityId: passwordId,
+        oldValue: password.toObject(),
+        newValue: { ...password.toObject(), tags: password.tags },
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent')
+      });
+
+      await auditLog.save();
+
       logger.info("Tag added to password successfully", { tag, passwordId });
     }
 
@@ -419,6 +497,17 @@ exports.addTag = async (req, res) => {
     res.status(500).json({ error: "An error occurred while adding the tag" });
   }
 };
+
+// Function to get the user's name by ID
+const getUserNameById = async (userId) => {
+  try {
+    const user = await User.findById(userId).select("name"); // Adjust the field as needed
+    return user ? user.name : null; // Return user name or null if not found
+  } catch (error) {
+    throw error; // Handle error appropriately
+  }
+};
+
 
 exports.postComment = async (req, res) => {
   try {
@@ -449,11 +538,23 @@ exports.postComment = async (req, res) => {
     // Retrieve the user's name by ID
     const userName = await getUserNameById(createdBy); // Assuming you have the function defined
 
-    // Respond with the newly created comment, including the user name
+    // Log the comment creation in the audit log
+    const auditLog = new AuditLog({
+      userId: createdBy,
+      action: 'create',
+      entity: 'comment',
+      entityId: newComment._id,
+      oldValue: null, // No previous value as it's a new comment
+      newValue: newComment.toObject(),
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent'),
+    });
+    await auditLog.save();
+
     logger.info("Comment added successfully", {
       passwordId,
       commentId: newComment._id,
-      userId: req.user._id,
+      userId: createdBy,
     });
     res.status(201).json({
       message: "Comment added successfully",
@@ -468,15 +569,6 @@ exports.postComment = async (req, res) => {
   }
 };
 
-// Function to get the user's name by ID
-const getUserNameById = async (userId) => {
-  try {
-    const user = await User.findById(userId).select("name"); // Adjust the field as needed
-    return user ? user.name : null; // Return user name or null if not found
-  } catch (error) {
-    throw error; // Handle error appropriately
-  }
-};
 
 exports.handleShareRequest = async (req, res) => {
   const { itemId, itemType, message, password, recipientEmail, subject } = req.body;
@@ -591,9 +683,21 @@ exports.handleShareRequest = async (req, res) => {
     };
 
     // 9. Send the email
-     await sendEmail(mailOptions);
+    await sendEmail(mailOptions);
 
-    // 10. Respond with success
+    // 10. Log the sharing action
+    const auditLog = new AuditLog({
+      userId: req.user._id,
+      action: 'share',
+      entity: 'password',
+      entityId: itemIds,
+      newValue: { downloadLink, message, recipientEmail, subject },
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent'),
+    });
+    await auditLog.save();
+
+    // 11. Respond with success
     res.status(200).json({ message: 'Email sent successfully' });
 
   } catch (error) {
@@ -601,28 +705,106 @@ exports.handleShareRequest = async (req, res) => {
     res.status(500).json({ message: 'Failed to share items' });
   }
 };
+
 // // Route to handle CSV file download and cleanup
 exports.downloadAsCsv = async (req, res) => {
   const filename = req.params.filename;
   const filepath = path.join(csvDirectory, filename);
 
-  if (await fs.pathExists(filepath)) {
-    res.download(filepath, (err) => {
-      if (err) {
-        console.error('Error downloading file:', err);
-        res.status(500).send('Could not download file');
-      } else {
-        fs.remove(filepath);
-        fs.unlink(filePath, err => {
-          if (err) console.error("Error deleting the file:", err);
-        });
-        res.status(200).json({
-          message: 'File downloaded successfully',
-        })
-      }
+  try {
+    // Check if the file exists
+    if (await fs.pathExists(filepath)) {
+      // Log the download attempt in the audit log
+      const auditLog = new AuditLog({
+        userId: req.user._id,
+        action: 'download',
+        entity: 'csv_file',
+        entityId: filename,
+        oldValue: null,  // No previous value as it's a download action
+        newValue: { filename, filepath },
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+      });
+      await auditLog.save();
+
+      // Send the file for download
+      res.download(filepath, (err) => {
+        if (err) {
+          console.error('Error downloading file:', err);
+
+          // Log the error in the audit log
+          const errorAuditLog = new AuditLog({
+            userId: req.user._id,
+            action: 'download_error',
+            entity: 'csv_file',
+            entityId: filename,
+            oldValue: null,  // Error, no previous value
+            newValue: { error: err.message },
+            ipAddress: req.ip,
+            userAgent: req.get('User-Agent'),
+          });
+          auditLog.save(); // Saving error log
+
+          res.status(500).send('Could not download file');
+        } else {
+          // Log file removal after successful download
+          fs.remove(filepath, (err) => {
+            if (err) {
+              console.error('Error deleting the file:', err);
+            }
+
+            // After removal, finalize audit log with file deletion
+            const deleteAuditLog = new AuditLog({
+              userId: req.user._id,
+              action: 'delete',
+              entity: 'csv_file',
+              entityId: filename,
+              oldValue: { filepath },
+              newValue: { deleted: true },
+              ipAddress: req.ip,
+              userAgent: req.get('User-Agent'),
+            });
+            deleteAuditLog.save();
+          });
+
+          res.status(200).json({
+            message: 'File downloaded successfully',
+          });
+        }
+      });
+    } else {
+      // Log the failure if the file is not found
+      const auditLog = new AuditLog({
+        userId: req.user._id,
+        action: 'download_error',
+        entity: 'csv_file',
+        entityId: filename,
+        oldValue: null,
+        newValue: { message: 'File not found' },
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+      });
+      await auditLog.save();
+
+      res.status(404).send('File not found');
+    }
+  } catch (error) {
+    console.error('Error handling file download:', error);
+
+    // Log the unexpected error
+    const auditLog = new AuditLog({
+      userId: req.user._id,
+      action: 'download_error',
+      entity: 'csv_file',
+      entityId: filename,
+      oldValue: null,
+      newValue: { error: error.message },
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent'),
     });
-  } else {
-    res.status(404).send('File not found');
+    await auditLog.save();
+
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
 

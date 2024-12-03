@@ -1,10 +1,44 @@
 const mongoose = require('mongoose');
 
+// Schema for Detailed Audit Log Entry
 const AuditLogSchema = new mongoose.Schema({
-    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    action: { type: String, enum: ['create', 'update', 'delete'], required: true },
-    provider: { type: String, required: true },
-    timestamp: { type: Date, default: Date.now },
+    userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+    },
+    action: {
+        type: String,
+        enum: ['create', 'update', 'delete', 'view', 'share', 'access'],
+        required: true
+    },
+    entity: {
+        type: String,
+        required: true
+    },
+    entityId: {
+        type: mongoose.Schema.Types.ObjectId,
+        required: true
+    },
+    oldValue: {
+        type: mongoose.Schema.Types.Mixed, // Stores old values for updates
+    },
+    newValue: {
+        type: mongoose.Schema.Types.Mixed, // Stores new values for updates
+    },
+    ipAddress: {
+        type: String
+    },
+    userAgent: {
+        type: String
+    },
+    timestamp: {
+        type: Date,
+        default: Date.now
+    }
+}, {
+    timestamps: true
 });
 
-module.exports = mongoose.model('AuditLog', AuditLogSchema);
+// Create the model
+const AuditLog = mongoose.model('AuditLog', AuditLogSchema);
