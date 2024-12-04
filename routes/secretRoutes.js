@@ -1,46 +1,23 @@
-// routes/secretRoutes.js
-
 const express = require('express');
-const Secret = require('../model/secrets');
+const secretController = require('../controllers/secretController'); // Import the new controller
 const router = express.Router();
 
-// Create a new secret (e.g., API key, credential)
-router.post('/create', async (req, res) => {
-    try {
-        const { name, value, type, description } = req.body;
-
-        // Create new secret
-        const secret = new Secret({ name, value, type, description });
-
-        // Save to the database
-        await secret.save();
-
-        res.status(201).json({ message: 'Secret stored successfully', secret });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Failed to store secret' });
-    }
-});
+// Create a new secret
+router.post('/create', secretController.createSecret);
 
 // Retrieve all secrets (decrypted)
-router.get('/all', async (req, res) => {
-    try {
-        const secrets = await Secret.find();
+router.get('/all', secretController.getAllSecrets);
 
-        // Decrypt each secret before sending
-        const decryptedSecrets = secrets.map(secret => ({
-            name: secret.name,
-            value: secret.getDecryptedValue(),
-            type: secret.type,
-            description: secret.description,
-            createdAt: secret.createdAt
-        }));
+// Get a secret by ID
+router.get('/:id', secretController.getSecretById);
 
-        res.status(200).json({ decryptedSecrets });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Failed to retrieve secrets' });
-    }
-});
+// Update a secret by ID
+router.put('/:id', secretController.updateSecret);
+
+// Delete a secret by ID
+router.delete('/:id', secretController.deleteSecret);
+
+// Search for secrets by name
+router.get('/search/:name', secretController.searchSecretsByName);
 
 module.exports = router;

@@ -1,7 +1,7 @@
 const Card = require('../model/card'); // Assuming the schema file is named card.js
 const User = require('../model/user')
 const SharedItem = require("../model/shareItem");
-const AuditLog = require('../model/AuditLog'); // Adjust path accordingly
+const AuditLog = require('../model/Auditlogs'); // Adjust path accordingly
 
 
 

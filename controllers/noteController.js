@@ -4,7 +4,7 @@ const { parse } = require("json2csv");
 const SharedItem = require("../model/shareItem"); // Assuming this is your SharedItem model
 const Tag = require("../model/tag");
 const Comment = require("../model/comment");
-const logger = require("../config/logger"); // Adjust the path as needed
+const AuditLog = require('../model/Auditlogs'); // Import the Audit Log model
 
 // Create a new note
 exports.createNote = async (req, res) => {
@@ -14,13 +14,25 @@ exports.createNote = async (req, res) => {
     const { folderId } = req.body;
     if (!folderId) {
       return res.status(400).json({
-        message: "Folder ID is required to create a new password",
+        message: "Folder ID is required to create a new note",
       });
     } else {
       req.body["folder"] = folderId; // Set folder ID
     }
     const newNote = new Note(req.body);
     await newNote.save();
+
+    // Create an audit log entry for the note creation
+    await AuditLog.create({
+      userId: req.user._id,
+      action: 'create',
+      entity: 'Note',
+      entityId: newNote._id,
+      newValue: newNote,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
     res.status(201).send(newNote);
   } catch (error) {
     res.status(400).send(error);
@@ -134,6 +146,17 @@ exports.getAllNotes = async (req, res) => {
     // Fetch total count for pagination
     const totalCount = await Note.countDocuments(query);
 
+    // Create an audit log entry for retrieving notes
+    await AuditLog.create({
+      userId: req.user._id,
+      action: 'view',
+      entity: 'Note',
+      entityId: null, // No specific entity ID for this action
+      newValue: enhancedNotes,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
     res.json({
       data: enhancedNotes,
       pagination: {
@@ -156,6 +179,18 @@ exports.getNoteById = async (req, res) => {
     if (!note) {
       return res.status(404).send();
     }
+
+    // Create an audit log entry for retrieving a specific note
+    await AuditLog.create({
+      userId: req.user._id,
+      action: 'view',
+      entity: 'Note',
+      entityId: note._id,
+      newValue: note,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
     res.send(note);
   } catch (error) {
     res.status(500).send(error);
@@ -189,6 +224,19 @@ exports.updateNote = async (req, res) => {
     note.modifiedby = req.user._id;
 
     await note.save();
+
+    // Create an audit log entry for the note update
+    await AuditLog.create({
+      userId: req.user._id,
+      action: 'update',
+      entity: 'Note',
+      entityId: note._id,
+      oldValue: { ...note._doc }, // Store old values
+      newValue: note,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
     res.send(note);
   } catch (error) {
     res.status(400).send({ error: "Error updating note!" });
@@ -203,6 +251,18 @@ exports.deleteNote = async (req, res) => {
     if (!note) {
       return res.status(404).send();
     }
+
+    // Create an audit log entry for the note deletion
+    await AuditLog.create({
+      userId: req.user._id,
+      action: 'delete',
+      entity: 'Note',
+      entityId: notesIds, // Log the IDs of deleted notes
+      oldValue: notesIds,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
     res.send(note);
   } catch (error) {
     res.status(500).send(error);
@@ -236,6 +296,19 @@ exports.toggleFavorite = async (req, res) => {
     }
 
     await user.save();
+
+    // Create an audit log entry for toggling favorites
+    await AuditLog.create({
+      userId: req.user._id,
+      action: 'update',
+      entity: 'User',
+      entityId: userId,
+      oldValue: { favorites: user.favorites }, // Store old values
+      newValue: { favorites: user.favorites },
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
     return res.status(200).json({ message: "Favorites updated successfully" });
   } catch (err) {
     res.status(500).json({ message: "Error updating favorites" });
@@ -254,9 +327,20 @@ exports.exportAllNotesAsCsv = async (req, res) => {
       .lean(); // Convert to plain JSON
     const csv = parse(notes);
 
+    // Create an audit log entry for exporting notes
+    await AuditLog.create({
+      userId: req.user._id,
+      action: 'export',
+      entity: 'Note',
+      entityId: null, // No specific entity ID for this action
+      newValue: notes,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
     // Set headers for CSV download
     res.header("Content-Type", "text/csv");
-    res.header("Content-Disposition", "attachment; filename=passwords.csv");
+    res.header("Content-Disposition", "attachment; filename=notes.csv");
     res.send(csv);
   } catch (error) {
     res.status(500).send(error);
@@ -277,8 +361,8 @@ exports.addTag = async (req, res) => {
     const note = await Note.findById(noteId);
 
     if (!note) {
-      logger.warn("note not found for adding tag", { noteId });
-      return res.status(404).json({ error: "note not found" });
+      logger.warn("Note not found for adding tag", { noteId });
+      return res.status(404).json({ error: "Note not found" });
     }
 
     if (!note.tags) {
@@ -323,17 +407,17 @@ exports.postComment = async (req, res) => {
     // Save the comment to the database
     await newComment.save();
 
-    // Find the associated password
-    const password = await Note.findById(noteId);
-    if (!password) {
-      logger.warn("Password not found for comment", { noteId });
-      return res.status(404).json({ message: "Password not found" });
+    // Find the associated note
+    const note = await Note.findById(noteId);
+    if (!note) {
+      logger.warn("Note not found for comment", { noteId });
+      return res.status(404).json({ message: "Note not found" });
     }
 
-    // Add the new comment ID to the password's comments array
-    password.comments.push(newComment._id);
-    password.modifiedby = req.user._id;
-    await password.save();
+    // Add the new comment ID to the note's comments array
+    note.comments.push(newComment._id);
+    note.modifiedby = req.user._id;
+    await note.save();
 
     // Retrieve the user's name by ID
     const userName = await getUserNameById(createdBy); // Assuming you have the function defined

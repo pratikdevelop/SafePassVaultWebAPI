@@ -17,7 +17,7 @@ const upload = multer({ storage: storage });
 router.post('/upload', upload.single('file'), fileController.uploadFile);
 
 // Route to get a file by ID
-router.get('/preview/:id', fileController.getFileById);
+// router.get('/preview/:id', fileController.getFileById);
 
 router.get('/', fileController.getAllFiles);
 

@@ -1,18 +1,17 @@
 const File = require('../model/file-storage');
-const mongoose = require('mongoose');
 const fs = require('fs');
 const path = require('path');
-const Folder = require('../model/folder')
+const Folder = require('../model/folder');
 const Invitation = require('../model/Invitation'); // Adjust the path as needed
-const User = require('../model/user');
 const AWS = require('aws-sdk');
 const s3 = new AWS.S3({
   accessKeyId: process.env.AWS_ACCESS_KEY_ID,
   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
   region: process.env.AWS_REGION,
 });
-module.exports = {
+const AuditLog = require('../model/Auditlogs'); // Import the Audit Log model
 
+module.exports = {
   uploadFile: async (req, res) => {
     try {
       const { originalname, path: filePath, size } = req.file;
@@ -33,7 +32,6 @@ module.exports = {
       };
 
       const response = await s3.upload(params).promise();
-      // Create file document
       const newFile = new File({
         filename: path.basename(filePath),
         originalName: originalname,
@@ -49,31 +47,21 @@ module.exports = {
 
       await newFile.save();
 
-      res.status(201).json({ message: 'File uploaded successfully', file: newFile });
-    } catch (error) {
-      console.log(
-        'eeee', error
-      );
-
-      res.status(500).json({ message: 'Error uploading file', error: error.message });
-    }
-  },
-  getFileById: async (req, res) => {
-    try {
-      const file = await File.findById(req.params.id).populate('folderId ownerId');
-      if (!file || file.isDeleted) {
-        return res.status(404).json({ message: 'File not found' });
-      }
-      const fileUrl = s3.getSignedUrl('getObject', {
-        Bucket: process.env.S3_BUCKET_NAME_FILE_STORAGE,
-        Key: `files/${file.originalName}`,
-        Expires: 400,
+      // Create an audit log entry for the upload action
+      await AuditLog.create({
+        userId: req.user._id,
+        action: 'create',
+        entity: 'File',
+        entityId: newFile._id,
+        newValue: newFile,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent']
       });
 
-      file.location = fileUrl;
-      res.status(200).json(file);
+      res.status(201).json({ message: 'File uploaded successfully', file: newFile });
     } catch (error) {
-      res.status(500).json({ message: 'Error retrieving file', error: error.message });
+      console.log('Error uploading file:', error);
+      res.status(500).json({ message: 'Error uploading file', error: error.message });
     }
   },
 
@@ -93,6 +81,19 @@ module.exports = {
       if (typeof offlineAccess === 'boolean') file.offlineAccess = offlineAccess;
 
       await file.save();
+
+      // Create an audit log entry for the update action
+      await AuditLog.create({
+        userId: req.user._id,
+        action: 'update',
+        entity: 'File',
+        entityId: file._id,
+        oldValue: { ...file._doc }, // Store old values
+        newValue: file,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent']
+      });
+
       res.status(200).json({ message: 'File updated successfully', file });
     } catch (error) {
       res.status(500).json({ message: 'Error updating file', error: error.message });
@@ -112,15 +113,25 @@ module.exports = {
         console.log(`Local file ${file.path} not found`);
       }
 
-      // Step 3: Delete the file from S3 (ensure the correct parameters are used)
       const params = {
-        Bucket: process.env.S3_BUCKET_NAME_FILE_STORAGE, // Ensure the S3 bucket name is correct
-        Key: `files/${file.originalName}`, // The correct parameter name is `Key`, not `key`
+        Bucket: process.env.S3_BUCKET_NAME_FILE_STORAGE,
+        Key: `files/${file.originalName}`,
       };
 
-      // Step 4: Perform S3 delete operation
       await s3.deleteObject(params).promise();
       await file.deleteOne();
+
+      // Create an audit log entry for the delete action
+      await AuditLog.create({
+        userId: req.user._id,
+        action: 'delete',
+        entity: 'File',
+        entityId: file._id,
+        oldValue: file,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent']
+      });
+
       res.status(200).json({ message: 'File deleted successfully' });
     } catch (error) {
       res.status(500).json({ message: 'Error deleting file', error: error.message });
@@ -136,74 +147,103 @@ module.exports = {
 
       file.isDeleted = false;
       await file.save();
+
+      // Create an audit log entry for the restore action
+      await AuditLog.create({
+        userId: req.user._id,
+        action: 'access',
+        entity: 'File',
+        entityId: file._id,
+        oldValue: { isDeleted: true },
+        newValue: { isDeleted: false },
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent']
+      });
+
       res.status(200).json({ message: 'File restored successfully' });
     } catch (error) {
       res.status(500).json({ message: 'Error restoring file', error: error.message });
     }
   },
+
   getAllFiles: async (req, res) => {
     try {
-      const files = await File.find({ isDeleted: false, ownerId: req.user._id }).populate('folderId').populate({
-        path: "ownerId",
-        select: "name"
+      const files = await File.find({ isDeleted: false, ownerId: req.user._id })
+        .populate('folderId')
+        .populate({
+          path: "ownerId",
+          select: "name"
+        });
+
+      // Create an audit log entry for retrieving files
+      await AuditLog.create({
+        userId: req.user._id,
+        action: 'view',
+        entity: 'File',
+        entityId: null, // No specific entity ID for this action
+        newValue: files,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent']
       });
+
       res.status(200).json(files);
     } catch (error) {
       res.status(500).json({ message: 'Error retrieving files', error: error.message });
     }
   },
+
   permanentlyDeleteFile: async (req, res) => {
     try {
-      // Step 1: Find the file in your database
       const file = await File.findById(req.params.id);
       if (!file) {
         return res.status(404).json({ message: 'File not found' });
       }
 
-      // Step 2: Delete the file from the local filesystem (if it exists)
       if (fs.existsSync(file.path)) {
         fs.unlinkSync(file.path); // Delete the local file
       } else {
         console.log(`Local file ${file.path} not found`);
       }
 
-      // Step 3: Delete the file from S3 (ensure the correct parameters are used)
       const params = {
-        Bucket: process.env.S3_BUCKET_NAME_FILE_STORAGE, // Ensure the S3 bucket name is correct
-        Key: `files/${file.originalName}`, // The correct parameter name is `Key`, not `key`
+        Bucket: process.env.S3_BUCKET_NAME_FILE_STORAGE,
+        Key: `files/${file.originalName}`,
       };
 
-      // Step 4: Perform S3 delete operation
       const s3Response = await s3.deleteObject(params).promise();
 
-      // Step 5: Optionally, handle response from S3
-      console.log('S3 response:', s3Response);
+      // Create an audit log entry for the permanent deletion
+      await AuditLog.create({
+        userId: req.user._id,
+        action: 'delete',
+        entity: 'File',
+        entityId: file._id,
+        oldValue: file,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent']
+      });
 
-      // Step 6: Respond to the client
       return res.status(200).json({ message: 'File permanently deleted', response: s3Response });
     } catch (error) {
-      // Step 7: Handle errors properly
-      console.error('Error deleting file:', error);
+      console.error('Error permanently deleting file:', error);
       return res.status(500).json({ message: 'Error permanently deleting file', error: error.message });
     }
   },
+
   createFolder: async (req, res) => {
     try {
       const ownerId = req.user._id;
       const { name, parentId } = req.body;
 
-      // Validate inputs
       if (!name || !ownerId) {
         return res.status(400).json({ message: 'Folder name and owner ID are required' });
       }
 
-      // Check if a folder with the same name exists in the same parent folder
       const existingFolder = await Folder.findOne({ name, ownerId, parentId });
       if (existingFolder) {
         return res.status(409).json({ message: 'Folder with this name already exists' });
       }
 
-      // Create folder document
       const newFolder = new Folder({
         name,
         user: ownerId,
@@ -211,6 +251,18 @@ module.exports = {
       });
 
       await newFolder.save();
+
+      // Create an audit log entry for the folder creation
+      await AuditLog.create({
+        userId: req.user._id,
+        action: 'create',
+        entity: 'Folder',
+        entityId: newFolder._id,
+        newValue: newFolder,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent']
+      });
+
       res.status(201).json({ message: 'Folder created successfully', folder: newFolder });
     } catch (error) {
       res.status(500).json({ message: 'Error creating folder', error: error.message });
@@ -225,12 +277,10 @@ module.exports = {
         return res.status(400).json({ message: 'Sender ID is required' });
       }
 
-      // If no search term is provided, return an empty array or a message
       if (!searchTerm) {
         return res.status(400).json({ message: 'Search term is required' });
       }
 
-      // Perform a case-insensitive search on name or email
       const invitations = await Invitation.aggregate([
         {
           $match: { sender: senderId }
@@ -256,10 +306,20 @@ module.exports = {
         }
       ]);
 
+      // Create an audit log entry for the search action
+      await AuditLog.create({
+        userId: req.user._id,
+        action: 'access',
+        entity: 'User',
+        entityId: null, // No specific entity ID for this action
+        newValue: invitations,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent']
+      });
+
       res.status(200).json(invitations);
     } catch (error) {
       res.status(500).json({ message: 'Error searching invitations', error: error.message });
     }
   }
-
 };

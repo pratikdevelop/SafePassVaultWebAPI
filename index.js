@@ -21,9 +21,7 @@ const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./config/swagger')
 const ssoRoutes = require('./routes/ssoRoutes');
 const secretRoutes = require('./routes/secretRoutes');
-const WebAuthn = require('webauthn');
-const crypto = require('crypto');
-const User = require('./model/user');
+const auditRoutes = require('./routes/auditRoutes');
 
 const folderRoutes = require('./routes/folderRoutes'); // Adjust the path as necessary
 const addressRoutes = require('./routes/addressRoutes'); // Import routes
@@ -55,6 +53,7 @@ app.use('/api/share', shareItemRoutes);
 app.use('/api/plans', planRoutes);
 app.use('/api/logs', logRoutes);
 app.use('/api/secrets', secretRoutes);
+app.use('/api/audit', auditRoutes);
 
 app.use('/api/sso-settings', ssoRoutes)
 

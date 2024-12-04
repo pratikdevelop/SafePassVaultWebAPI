@@ -1,4 +1,5 @@
 const Folder = require("../model/folder");
+const AuditLog = require('../model/Auditlogs'); // Import the Audit Log model
 
 // Create a new folder
 exports.createFolder = async (req, res) => {
@@ -11,6 +12,18 @@ exports.createFolder = async (req, res) => {
       type,
     });
     await folder.save();
+
+    // Create an audit log entry for the folder creation
+    await AuditLog.create({
+      userId: req.user._id,
+      action: 'create',
+      entity: 'Folder',
+      entityId: folder._id,
+      newValue: folder,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
     res.status(201).json(folder);
   } catch (error) {
     res.status(500).json({ error: "Internal server error" });
@@ -21,6 +34,18 @@ exports.createFolder = async (req, res) => {
 exports.getUserFolders = async (req, res) => {
   try {
     const folders = await Folder.findByUser(req.user.id);
+
+    // Create an audit log entry for retrieving folders
+    await AuditLog.create({
+      userId: req.user._id,
+      action: 'view',
+      entity: 'Folder',
+      entityId: null, // No specific entity ID for this action
+      newValue: folders,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
     res.status(200).json(folders);
   } catch (error) {
     res.status(500).json({ error: "Internal server error" });
@@ -37,6 +62,18 @@ exports.getFolderById = async (req, res) => {
     if (folder.user.toString() !== req.user.id) {
       return res.status(403).json({ message: "Unauthorized" });
     }
+
+    // Create an audit log entry for retrieving a specific folder
+    await AuditLog.create({
+      userId: req.user._id,
+      action: 'view',
+      entity: 'Folder',
+      entityId: folder._id,
+      newValue: folder,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
     res.status(200).json(folder);
   } catch (error) {
     res.status(500).json({ error: "Internal server error" });
@@ -61,6 +98,19 @@ exports.updateFolder = async (req, res) => {
     folder.type = type || folder.type;
 
     await folder.save();
+
+    // Create an audit log entry for the folder update
+    await AuditLog.create({
+      userId: req.user._id,
+      action: 'update',
+      entity: 'Folder',
+      entityId: folder._id,
+      oldValue: { ...folder._doc }, // Store old values
+      newValue: folder,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
     res.status(200).json(folder);
   } catch (error) {
     res.status(500).json({ error: "Internal server error" });
@@ -79,6 +129,18 @@ exports.deleteFolder = async (req, res) => {
     }
 
     await folder.remove();
+
+    // Create an audit log entry for the folder deletion
+    await AuditLog.create({
+      userId: req.user._id,
+      action: 'delete',
+      entity: 'Folder',
+      entityId: folder._id,
+      oldValue: folder,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
     res.status(204).send();
   } catch (error) {
     res.status(500).json({ error: "Internal server error" });
@@ -90,7 +152,6 @@ exports.getFoldersByType = async (req, res) => {
   const { type } = req.params;
 
   try {
-    // Find folders by type and user
     const folders = (await Folder.find({ user: req.user._id, type })).map(
       (folder) => {
         return {
@@ -101,10 +162,19 @@ exports.getFoldersByType = async (req, res) => {
     );
 
     if (folders.length === 0) {
-      return res
-        .status(404)
-        .json({ message: "No folders found for this type" });
+      return res.status(404).json({ message: "No folders found for this type" });
     }
+
+    // Create an audit log entry for retrieving folders by type
+    await AuditLog.create({
+      userId: req.user._id,
+      action: 'view',
+      entity: 'Folder',
+      entityId: null, // No specific entity ID for this action
+      newValue: folders,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
 
     res.status(200).json(folders);
   } catch (error) {
@@ -112,22 +182,20 @@ exports.getFoldersByType = async (req, res) => {
   }
 };
 
+// Search folders
 exports.searchFolders = async (req, res) => {
   try {
     const ownerId = req.user._id;
     const { searchTerm, type } = req.query;
 
-    // Validate inputs
     if (!searchTerm || !ownerId) {
       return res.status(400).json({ message: 'Search term and owner ID are required' });
     }
 
-
-    // Perform a case-insensitive search
     const folders = (await Folder.find({
-      name: { $regex: new RegExp(searchTerm, 'i') }, // Case-insensitive search
+      name: { $regex: new RegExp(searchTerm, 'i') },
       type: type,
-      user: ownerId // Ensure ownerId is valid ObjectId
+      user: ownerId
     })).map(
       (folder) => {
         return {
@@ -137,9 +205,20 @@ exports.searchFolders = async (req, res) => {
       }
     );
 
+    // Create an audit log entry for the search action
+    await AuditLog.create({
+      userId: req.user._id,
+      action: 'access',
+      entity: 'Folder',
+      entityId: null, // No specific entity ID for this action
+      newValue: folders,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
     res.status(200).json(folders);
   } catch (error) {
-    console.log('ee', error);
+    console.log('Error searching folders:', error);
     res.status(500).json({ message: 'Error searching folders', error: error.message });
   }
 };

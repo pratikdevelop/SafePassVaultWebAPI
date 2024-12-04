@@ -1,13 +1,16 @@
-const getUserAuditLogs = async (userId) => {
+const AuditLog = require('../model/Auditlogs'); // Adjust path accordingly
+
+exports.getUserAuditLogs = async (req, res) => {
     try {
-        const logs = await AuditLog.find({ userId }).sort({ timestamp: -1 });
-        return logs;
+        const userId = req.user._id;
+        const logs = await AuditLog.find({ userId });
+        return res.status(200).json({ logs });
     } catch (error) {
         console.error('Error fetching audit logs:', error);
         return [];
     }
 };
-const searchAuditLogs = async (action, startDate, endDate) => {
+exports.searchAuditLogs = async (action, startDate, endDate) => {
     try {
         const query = {};
         if (action) query.action = action;

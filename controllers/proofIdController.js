@@ -1,4 +1,5 @@
 const ProofId = require('../model/proofid'); // Assuming the schema file is named proofId.js
+const AuditLog = require('../model/Auditlogs'); // Import the Audit Log model
 
 // Create a new proof ID
 exports.createProofId = async (req, res) => {
@@ -7,6 +8,18 @@ exports.createProofId = async (req, res) => {
     req.body.userId = userId;
     const proofId = new ProofId(req.body);
     await proofId.save();
+
+    // Create an audit log entry for the proof ID creation
+    await AuditLog.create({
+      userId: req.user._id,
+      action: 'create',
+      entity: 'ProofId',
+      entityId: proofId._id,
+      newValue: proofId,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
     res.status(201).send(proofId);
   } catch (error) {
     res.status(400).send(error);
@@ -20,7 +33,19 @@ exports.getAllProofIds = async (req, res) => {
       path: 'userId',
       select: 'name email'
     });
-    res.status(200).json({proofIds});
+
+    // Create an audit log entry for retrieving proof IDs
+    await AuditLog.create({
+      userId: req.user._id,
+      action: 'view',
+      entity: 'ProofId',
+      entityId: null, // No specific entity ID for this action
+      newValue: proofIds,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    res.status(200).json({ proofIds });
   } catch (error) {
     res.status(500).send(error);
   }
@@ -34,6 +59,18 @@ exports.getProofIdById = async (req, res) => {
     if (!proofId) {
       return res.status(404).send();
     }
+
+    // Create an audit log entry for retrieving a specific proof ID
+    await AuditLog.create({
+      userId: req.user._id,
+      action: 'view',
+      entity: 'ProofId',
+      entityId: proofId._id,
+      newValue: proofId,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
     res.send(proofId);
   } catch (error) {
     res.status(500).send(error);
@@ -58,6 +95,19 @@ exports.updateProofId = async (req, res) => {
 
     updates.forEach((update) => proofId[update] = req.body[update]);
     await proofId.save();
+
+    // Create an audit log entry for the proof ID update
+    await AuditLog.create({
+      userId: req.user._id,
+      action: 'update',
+      entity: 'ProofId',
+      entityId: proofId._id,
+      oldValue: { ...proofId._doc }, // Store old values
+      newValue: proofId,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
     res.send(proofId);
   } catch (error) {
     res.status(400).send(error);
@@ -71,6 +121,18 @@ exports.deleteProofId = async (req, res) => {
     if (!proofId) {
       return res.status(404).send();
     }
+
+    // Create an audit log entry for the proof ID deletion
+    await AuditLog.create({
+      userId: req.user._id,
+      action: 'delete',
+      entity: 'ProofId',
+      entityId: proofId._id,
+      oldValue: proofId,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
     res.send(proofId);
   } catch (error) {
     res.status(500).send(error);

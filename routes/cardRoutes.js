@@ -9,7 +9,7 @@ router.post('/', cardController.createCard);
 router.get('/', cardController.getAllCards);
 
 // Get a card by ID
-router.get('/:id', cardController.getCardById);
+// router.get('/:id', cardController.getCardById);
 
 // Update a card by ID
 router.patch('/:id', cardController.updateCard);
