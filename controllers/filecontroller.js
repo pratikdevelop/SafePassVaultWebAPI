@@ -51,7 +51,7 @@ module.exports = {
       await AuditLog.create({
         userId: req.user._id,
         action: 'create',
-        entity: 'File',
+        entity: 'file',
         entityId: newFile._id,
         newValue: newFile,
         ipAddress: req.ip,
@@ -86,7 +86,7 @@ module.exports = {
       await AuditLog.create({
         userId: req.user._id,
         action: 'update',
-        entity: 'File',
+        entity: 'file',
         entityId: file._id,
         oldValue: { ...file._doc }, // Store old values
         newValue: file,
@@ -125,7 +125,7 @@ module.exports = {
       await AuditLog.create({
         userId: req.user._id,
         action: 'delete',
-        entity: 'File',
+        entity: 'file',
         entityId: file._id,
         oldValue: file,
         ipAddress: req.ip,
@@ -152,7 +152,7 @@ module.exports = {
       await AuditLog.create({
         userId: req.user._id,
         action: 'access',
-        entity: 'File',
+        entity: 'file',
         entityId: file._id,
         oldValue: { isDeleted: true },
         newValue: { isDeleted: false },
@@ -179,7 +179,7 @@ module.exports = {
       await AuditLog.create({
         userId: req.user._id,
         action: 'view',
-        entity: 'File',
+        entity: 'file',
         entityId: null, // No specific entity ID for this action
         newValue: files,
         ipAddress: req.ip,
@@ -216,7 +216,7 @@ module.exports = {
       await AuditLog.create({
         userId: req.user._id,
         action: 'delete',
-        entity: 'File',
+        entity: 'file',
         entityId: file._id,
         oldValue: file,
         ipAddress: req.ip,

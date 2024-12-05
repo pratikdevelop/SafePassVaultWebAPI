@@ -17,7 +17,7 @@ exports.createFolder = async (req, res) => {
     await AuditLog.create({
       userId: req.user._id,
       action: 'create',
-      entity: 'Folder',
+      entity: 'folder',
       entityId: folder._id,
       newValue: folder,
       ipAddress: req.ip,
@@ -39,8 +39,7 @@ exports.getUserFolders = async (req, res) => {
     await AuditLog.create({
       userId: req.user._id,
       action: 'view',
-      entity: 'Folder',
-      entityId: null, // No specific entity ID for this action
+      entity: 'folder',
       newValue: folders,
       ipAddress: req.ip,
       userAgent: req.headers['user-agent']
@@ -67,7 +66,7 @@ exports.getFolderById = async (req, res) => {
     await AuditLog.create({
       userId: req.user._id,
       action: 'view',
-      entity: 'Folder',
+      entity: 'folder',
       entityId: folder._id,
       newValue: folder,
       ipAddress: req.ip,
@@ -103,7 +102,7 @@ exports.updateFolder = async (req, res) => {
     await AuditLog.create({
       userId: req.user._id,
       action: 'update',
-      entity: 'Folder',
+      entity: 'folder',
       entityId: folder._id,
       oldValue: { ...folder._doc }, // Store old values
       newValue: folder,
@@ -134,7 +133,7 @@ exports.deleteFolder = async (req, res) => {
     await AuditLog.create({
       userId: req.user._id,
       action: 'delete',
-      entity: 'Folder',
+      entity: 'folder',
       entityId: folder._id,
       oldValue: folder,
       ipAddress: req.ip,
@@ -169,7 +168,7 @@ exports.getFoldersByType = async (req, res) => {
     await AuditLog.create({
       userId: req.user._id,
       action: 'view',
-      entity: 'Folder',
+      entity: 'folder',
       entityId: null, // No specific entity ID for this action
       newValue: folders,
       ipAddress: req.ip,
@@ -209,7 +208,7 @@ exports.searchFolders = async (req, res) => {
     await AuditLog.create({
       userId: req.user._id,
       action: 'access',
-      entity: 'Folder',
+      entity: 'folder',
       entityId: null, // No specific entity ID for this action
       newValue: folders,
       ipAddress: req.ip,

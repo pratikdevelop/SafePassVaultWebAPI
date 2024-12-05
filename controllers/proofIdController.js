@@ -13,7 +13,7 @@ exports.createProofId = async (req, res) => {
     await AuditLog.create({
       userId: req.user._id,
       action: 'create',
-      entity: 'ProofId',
+      entity: 'proofId',
       entityId: proofId._id,
       newValue: proofId,
       ipAddress: req.ip,
@@ -38,7 +38,7 @@ exports.getAllProofIds = async (req, res) => {
     await AuditLog.create({
       userId: req.user._id,
       action: 'view',
-      entity: 'ProofId',
+      entity: 'proofId',
       entityId: null, // No specific entity ID for this action
       newValue: proofIds,
       ipAddress: req.ip,
@@ -64,7 +64,7 @@ exports.getProofIdById = async (req, res) => {
     await AuditLog.create({
       userId: req.user._id,
       action: 'view',
-      entity: 'ProofId',
+      entity: 'proofId',
       entityId: proofId._id,
       newValue: proofId,
       ipAddress: req.ip,
@@ -100,7 +100,7 @@ exports.updateProofId = async (req, res) => {
     await AuditLog.create({
       userId: req.user._id,
       action: 'update',
-      entity: 'ProofId',
+      entity: 'proofId',
       entityId: proofId._id,
       oldValue: { ...proofId._doc }, // Store old values
       newValue: proofId,
@@ -126,7 +126,7 @@ exports.deleteProofId = async (req, res) => {
     await AuditLog.create({
       userId: req.user._id,
       action: 'delete',
-      entity: 'ProofId',
+      entity: 'proofId',
       entityId: proofId._id,
       oldValue: proofId,
       ipAddress: req.ip,

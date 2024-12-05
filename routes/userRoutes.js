@@ -142,77 +142,8 @@ router.patch("/change-password/:param", userController.changePassword);
  */
 router.get("/verify-reset-link", userController.verifyResetLink);
 
-/**
- * @swagger
- * /organization:
- *   post:
- *     summary: Create organization
- *     description: Creates a new organization.
- *     responses:
- *       201:
- *         description: Organization created successfully.
- */
-router.post("/organization", userController.createOrganization);
-router.delete('/organization/:id', userController.deleteOrganization)
-/**
- * @swagger
- * /organizations:
- *   get:
- *     summary: Get organizations
- *     description: Retrieve a list of organizations.
- *     responses:
- *       200:
- *         description: Successfully retrieved list of organizations.
- */
-router.get("/organizations", userController.getOrganizations);
-router.get('/organization/:id', userController.getOrganizationBYId);
-router.put('/organization/:id', userController.updateOrganization)
 
-/**
- * @swagger
- * /organizations/{organizationId}/invitations:
- *   post:
- *     summary: Send invitation
- *     description: Sends an invitation to a user to join an organization.
- *     parameters:
- *       - in: path
- *         name: organizationId
- *         required: true
- *         description: ID of the organization.
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Invitation sent successfully.
- */
-router.post(
-  "/organizations/:organizationId/invitations",
-  userController.sendInvitation
-);
 
-/**
- * @swagger
- * /accept-invitation:
- *   post:
- *     summary: Accept invitation
- *     description: Accepts an invitation to join an organization.
- *     responses:
- *       200:
- *         description: Invitation accepted successfully.
- */
-router.post("/accept-invitation", userController.acceptInvitation);
-
-/**
- * @swagger
- * /users:
- *   get:
- *     summary: Get all users
- *     description: Retrieve a list of all users in the system.
- *     responses:
- *       200:
- *         description: Successfully retrieved list of users.
- */
-router.get("/users", userController.getAllUsers);
 
 /**
  * @swagger
@@ -237,34 +168,6 @@ router.post("/mfa-settings", userController.saveMfaSettings);
  *         description: MFA code verified successfully.
  */
 router.post("/verify-mfa", userController.verifyMfaCode);
-
-/**
- * @swagger
- * /resend-invitation/{organizationId}/{recipientId}:
- *   post:
- *     summary: Resend invitation
- *     description: Resend an invitation to join an organization.
- *     parameters:
- *       - in: path
- *         name: organizationId
- *         required: true
- *         description: ID of the organization.
- *         schema:
- *           type: string
- *       - in: path
- *         name: recipientId
- *         required: true
- *         description: ID of the recipient.
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Invitation resent successfully.
- */
-router.post(
-  "/resend-invitation/:organizationId/:recipientId",
-  userController.resendInvitation
-);
 
 /**
  * @swagger

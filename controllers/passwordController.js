@@ -171,7 +171,7 @@ exports.createPassword = async (req, res) => {
     const auditLog = new AuditLog({
       userId: req.user._id,
       action: 'create',
-      entity: 'password',
+      entity: 'passwords',
       entityId: savedPassword._id,
       newValue: savedPassword.toObject(),
       ipAddress: req.ip,
@@ -205,7 +205,7 @@ exports.deletePasswords = async (req, res) => {
     const auditLog = new AuditLog({
       userId: req.user._id,
       action: 'delete',
-      entity: 'password',
+      entity: 'passwords',
       entityId: ids,
       ipAddress: req.ip,
       userAgent: req.get('User-Agent')
@@ -249,7 +249,7 @@ exports.updatePassword = async (req, res) => {
     const auditLog = new AuditLog({
       userId: req.user._id,
       action: 'update',
-      entity: 'password',
+      entity: 'passwords',
       entityId: updatedPassword._id,
       oldValue: updatedPassword.toObject(), // store old values
       newValue: req.body, // store new values
@@ -297,7 +297,7 @@ exports.sharePassword = async (req, res) => {
     const auditLog = new AuditLog({
       userId: req.user._id,
       action: 'share',
-      entity: 'password',
+      entity: 'passwords',
       entityId: passwordId,
       newValue: { shareLink, expirationDate },
       ipAddress: req.ip,
@@ -413,7 +413,7 @@ exports.exportAllPasswords = async (req, res) => {
     const auditLog = new AuditLog({
       userId: req.user._id,
       action: 'access',
-      entity: 'password',
+      entity: 'passwords',
       entityId: exportPasswordsIds,
       newValue: { count: passwords.length },
       ipAddress: req.ip,
@@ -470,7 +470,7 @@ exports.addTag = async (req, res) => {
       const auditLog = new AuditLog({
         userId: req.user._id,
         action: 'update',
-        entity: 'password',
+        entity: 'passwords',
         entityId: passwordId,
         oldValue: password.toObject(),
         newValue: { ...password.toObject(), tags: password.tags },
@@ -689,7 +689,7 @@ exports.handleShareRequest = async (req, res) => {
     const auditLog = new AuditLog({
       userId: req.user._id,
       action: 'share',
-      entity: 'password',
+      entity: 'passwords',
       entityId: itemIds,
       newValue: { downloadLink, message, recipientEmail, subject },
       ipAddress: req.ip,

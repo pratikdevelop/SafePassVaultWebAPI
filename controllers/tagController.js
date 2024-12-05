@@ -11,7 +11,7 @@ exports.createTag = async (req, res) => {
     await AuditLog.create({
       userId: req.user._id,
       action: 'create',
-      entity: 'Tag',
+      entity: 'tag',
       entityId: tag._id,
       newValue: tag,
       ipAddress: req.ip,
@@ -28,7 +28,7 @@ exports.createTag = async (req, res) => {
 exports.getAllTagsByType = async (req, res) => {
   try {
     const tags = (await Tag.find({
-      tagType: req.params.type,
+      // tagType: req.params.type,
     })).map((tag) => {
       return {
         _id: tag._id,
@@ -40,7 +40,7 @@ exports.getAllTagsByType = async (req, res) => {
     await AuditLog.create({
       userId: req.user._id,
       action: 'view',
-      entity: 'Tag',
+      entity: 'tag',
       entityId: null, // No specific entity ID for this action
       newValue: tags,
       ipAddress: req.ip,
@@ -65,7 +65,7 @@ exports.getTagById = async (req, res) => {
     await AuditLog.create({
       userId: req.user._id,
       action: 'view',
-      entity: 'Tag',
+      entity: 'tag',
       entityId: tag._id,
       newValue: tag,
       ipAddress: req.ip,
@@ -92,7 +92,7 @@ exports.updateTag = async (req, res) => {
     await AuditLog.create({
       userId: req.user._id,
       action: 'update',
-      entity: 'Tag',
+      entity: 'tag',
       entityId: tag._id,
       oldValue: { ...tag._doc }, // Store old values
       newValue: tag,
@@ -118,7 +118,7 @@ exports.deleteTag = async (req, res) => {
     await AuditLog.create({
       userId: req.user._id,
       action: 'delete',
-      entity: 'Tag',
+      entity: 'tag',
       entityId: tag._id,
       oldValue: tag,
       ipAddress: req.ip,
@@ -137,22 +137,22 @@ exports.searchTagsByName = async (req, res) => {
     const { name, type } = req.params;
     const tags = await Tag.find({
       name: { $regex: new RegExp(name, "i") },
-      type,
-      created_by: req.user._id
+      // type,
+      // created_by: req.user._id
     });
 
     // Create an audit log entry for the search action
-    await AuditLog.create({
-      userId: req.user._id,
-      action: 'search',
-      entity: 'Tag',
-      entityId: null, // No specific entity ID for this action
-      newValue: tags,
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent']
-    });
+    // await AuditLog.create({
+    //   userId: req.user._id,
+    //   action: 'search',
+    //   entity: 'tag',
+    //   entityId: null, // No specific entity ID for this action
+    //   newValue: tags,
+    //   ipAddress: req.ip,
+    //   userAgent: req.headers['user-agent']
+    // });
 
-    res.json(tags);
+    res.status(200).json(tags);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

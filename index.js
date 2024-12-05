@@ -22,15 +22,13 @@ const swaggerSpec = require('./config/swagger')
 const ssoRoutes = require('./routes/ssoRoutes');
 const secretRoutes = require('./routes/secretRoutes');
 const auditRoutes = require('./routes/auditRoutes');
-
+const invitationRoutes = require('./routes/invitiationRoutes');
+const organizationRoutes = require('./routes/organizationRoutes')
 const folderRoutes = require('./routes/folderRoutes'); // Adjust the path as necessary
 const addressRoutes = require('./routes/addressRoutes'); // Import routes
-const user = require("./model/tag");
+
 const port = process.env.PORT || 3000;
 app.get("/", (req, res) => {
-  // user.deleteMany().then((res) => {
-  //   console.log(res);
-  // })
   res.send("Hello World");
 
 });
@@ -54,6 +52,8 @@ app.use('/api/plans', planRoutes);
 app.use('/api/logs', logRoutes);
 app.use('/api/secrets', secretRoutes);
 app.use('/api/audit', auditRoutes);
+app.use('/api/invitation', invitationRoutes);
+app.use('/api/organization', organizationRoutes);
 
 app.use('/api/sso-settings', ssoRoutes)
 

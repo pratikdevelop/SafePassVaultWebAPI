@@ -26,7 +26,7 @@ exports.createNote = async (req, res) => {
     await AuditLog.create({
       userId: req.user._id,
       action: 'create',
-      entity: 'Note',
+      entity: 'notes',
       entityId: newNote._id,
       newValue: newNote,
       ipAddress: req.ip,
@@ -150,8 +150,7 @@ exports.getAllNotes = async (req, res) => {
     await AuditLog.create({
       userId: req.user._id,
       action: 'view',
-      entity: 'Note',
-      entityId: null, // No specific entity ID for this action
+      entity: 'notes',
       newValue: enhancedNotes,
       ipAddress: req.ip,
       userAgent: req.headers['user-agent']
@@ -167,6 +166,11 @@ exports.getAllNotes = async (req, res) => {
       },
     });
   } catch (error) {
+    console.error(
+      `Error fetching notes for user ${req.user._id}: ${error.message
+        .replace(/"/g, '')}`
+    );
+
     res.status(500).json({ message: "Error fetching notes" });
   }
 };
@@ -184,7 +188,7 @@ exports.getNoteById = async (req, res) => {
     await AuditLog.create({
       userId: req.user._id,
       action: 'view',
-      entity: 'Note',
+      entity: 'notes',
       entityId: note._id,
       newValue: note,
       ipAddress: req.ip,
@@ -229,7 +233,7 @@ exports.updateNote = async (req, res) => {
     await AuditLog.create({
       userId: req.user._id,
       action: 'update',
-      entity: 'Note',
+      entity: 'notes',
       entityId: note._id,
       oldValue: { ...note._doc }, // Store old values
       newValue: note,
@@ -256,7 +260,7 @@ exports.deleteNote = async (req, res) => {
     await AuditLog.create({
       userId: req.user._id,
       action: 'delete',
-      entity: 'Note',
+      entity: 'notes',
       entityId: notesIds, // Log the IDs of deleted notes
       oldValue: notesIds,
       ipAddress: req.ip,
@@ -331,7 +335,7 @@ exports.exportAllNotesAsCsv = async (req, res) => {
     await AuditLog.create({
       userId: req.user._id,
       action: 'export',
-      entity: 'Note',
+      entity: 'notes',
       entityId: null, // No specific entity ID for this action
       newValue: notes,
       ipAddress: req.ip,
