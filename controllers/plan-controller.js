@@ -38,37 +38,60 @@ exports.getPlans = async (req, res) => {
 
 
 exports.createSubscriptions = async (req, res) => {
-  // const { userId, plan, paypalOrderId } = req.body;
+  const { userId, plan, paypalOrderId } = req.body;
 
-  // // Verify the order details and create the subscription
-  // const request = new paypal.orders.OrdersGetRequest(paypalOrderId);
+  // Verify the order details and create the subscription
+  const request = new paypal.orders.OrdersGetRequest(paypalOrderId);
 
-  // try {
-  //   const response = await paypalClient().execute(request);
-  //   const order = response.result;
+  try {
+    const response = await paypalClient().execute(request);
+    const order = response.result;
 
-  //   // Here, validate order amount, status, etc.
-  //   if (order.status === 'COMPLETED') {
-  //     const newSubscription = new Subscription({
-  //       userId,
-  //       plan: plan.title,
-  //       paypalSubscriptionId: order.id, // Store PayPal order ID or subscription ID as needed
-  //       subscriptionStatus: order.status,
-  //       subscriptionStart: new Date(),
-  //       subscriptionExpiry: calculateExpiryDate(),
-  //     });
+    // Validate order amount, status, etc.
+    if (order.status === 'COMPLETED') {
 
-  //     await newSubscription.save();
-  //     res.status(201).json({
-  //       message: 'Subscription created successfully.',
-  //       subscriptionId: newSubscription.id,
-  //     });
-  //   } else {
-  //     res.status(400).json({ error: 'Order not completed' });
-  //   }
-  // } catch (error) {
-  //   res.status(500).json({ error: error.message });
-  // }
+      // Step 1: Check if user has an existing subscription
+      const existingSubscription = await Subscription.findOne({ userId });
+
+      if (existingSubscription) {
+        // Step 2: If the user has an existing subscription, handle upgrade or cancellation
+        // (e.g., cancel the existing subscription and create a new one)
+
+        // Option 1: Cancel the existing subscription (e.g., mark it as cancelled)
+        existingSubscription.subscriptionStatus = 'CANCELLED';
+        existingSubscription.subscriptionEnd = new Date();  // Set the end date to now or the end of the billing cycle
+        await existingSubscription.save();
+
+        // Option 2: You could also directly update the existing subscription's details (instead of creating a new one), 
+        // but for simplicity, let's assume you want to create a new one.
+
+        console.log('Existing subscription found. Cancelling the old plan...');
+      }
+
+      // Step 3: Create a new subscription (whether upgrading or a new plan)
+      const newSubscription = new Subscription({
+        userId,
+        plan: plan.title,  // Store the new plan title
+        paypalSubscriptionId: order.id, // PayPal order ID or subscription ID as needed
+        subscriptionStatus: order.status,
+        subscriptionStart: new Date(),
+        subscriptionExpiry: calculateExpiryDate(), // Calculate expiry date for the new subscription
+      });
+
+      await newSubscription.save();
+
+      // Step 4: Send a success response
+      res.status(201).json({
+        message: 'Subscription created successfully.',
+        subscriptionId: newSubscription.id,
+      });
+
+    } else {
+      res.status(400).json({ error: 'Order not completed' });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 };
 
 // Helper function to calculate the subscription expiry date
@@ -83,17 +106,14 @@ exports.getPlanDetails = async (planId) => {
     // Find the subscription plan associated with the user (using planId)
     const subscriptionPlan = await Subscription.findOne({ userId: planId });
 
-    if (!subscriptionPlan) {
-      throw new Error('Subscription plan not found.');
-    }
 
     // Find the plan details based on the plan name
     const planDetails = await Plan.findOne({
-      planName: subscriptionPlan.plan
+      planName: subscriptionPlan?.plan || 'free'
     });
 
     if (!planDetails) {
-      throw new Error('Plan details not found.');
+      return null;
     }
 
     // Merge subscriptionPlan and planDetails objects into a new object
