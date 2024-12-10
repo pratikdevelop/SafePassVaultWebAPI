@@ -26,7 +26,7 @@ exports.createCard = async (req, res) => {
     const auditLog = new AuditLog({
       userId: req.user._id,
       action: 'create',
-      entity: 'card',
+      entity: 'cards',
       entityId: newCard._id,
       newValue: newCard,
       ipAddress: req.ip,
@@ -122,7 +122,7 @@ exports.getAllCards = async (req, res) => {
     const auditLog = new AuditLog({
       userId,
       action: 'fetch',
-      entity: 'card',
+      entity: 'cards',
       entityId: null,
       newValue: { query, results: cards.length },
       ipAddress: req.ip,
@@ -161,7 +161,7 @@ exports.updateCard = async (req, res) => {
     const auditLog = new AuditLog({
       userId: req.user._id,
       action: 'update',
-      entity: 'card',
+      entity: 'cards',
       entityId: card._id,
       oldValue: oldCard,
       newValue: card,
@@ -188,7 +188,7 @@ exports.deleteCard = async (req, res) => {
     const auditLog = new AuditLog({
       userId: req.user._id,
       action: 'delete',
-      entity: 'card',
+      entity: 'cards',
       entityId: card._id,
       oldValue: card,
       newValue: null,
@@ -236,7 +236,7 @@ exports.toggleFavorite = async (req, res) => {
     const auditLog = new AuditLog({
       userId,
       action: 'toggle_favorite',
-      entity: 'card',
+      entity: 'cards',
       entityId: updatedFavorites,
       newValue: user.favorites,
       ipAddress: req.ip,

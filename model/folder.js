@@ -18,7 +18,7 @@ const folderSchema = new mongoose.Schema({
     type: { // New field for folder type
         type: String,
         required: true,
-        enum: ['passwords', 'notes', 'cards', 'proof', 'files', 'address', 'secrets'], // Add the types you want to support
+        enum: ['passwords', 'notes', 'cards', 'identity', 'files', 'address', 'secrets'], // Add the types you want to support
         default: 'passwords' // Default type, can be changed as needed
     }
 }, {
