@@ -16,7 +16,7 @@ exports.createSecret = async (req, res) => {
         await AuditLog.create({
             userId: req.user._id,
             action: 'create',
-            entity: 'secret',
+            entity: 'secrets',
             entityId: secret._id,
             newValue: secret,
             ipAddress: req.ip,
@@ -48,7 +48,7 @@ exports.getAllSecrets = async (req, res) => {
         await AuditLog.create({
             userId: req.user._id,
             action: 'view',
-            entity: 'secret',
+            entity: 'secrets',
             entityId: null, // No specific entity ID for this action
             newValue: decryptedSecrets,
             ipAddress: req.ip,
@@ -74,7 +74,7 @@ exports.getSecretById = async (req, res) => {
         await AuditLog.create({
             userId: req.user._id,
             action: 'view',
-            entity: 'secret',
+            entity: 'secrets',
             entityId: secret._id,
             newValue: secret,
             ipAddress: req.ip,
@@ -100,7 +100,7 @@ exports.updateSecret = async (req, res) => {
         await AuditLog.create({
             userId: req.user._id,
             action: 'update',
-            entity: 'secret',
+            entity: 'secrets',
             entityId: secret._id,
             oldValue: { ...secret._doc }, // Store old values
             newValue: secret,
@@ -127,7 +127,7 @@ exports.deleteSecret = async (req, res) => {
         await AuditLog.create({
             userId: req.user._id,
             action: 'delete',
-            entity: 'secret',
+            entity: 'secrets',
             entityId: secret._id,
             oldValue: secret,
             ipAddress: req.ip,
@@ -153,7 +153,7 @@ exports.searchSecretsByName = async (req, res) => {
         await AuditLog.create({
             userId: req.user._id,
             action: 'search',
-            entity: 'secret',
+            entity: 'secrets',
             entityId: null, // No specific entity ID for this action
             newValue: secrets,
             ipAddress: req.ip,

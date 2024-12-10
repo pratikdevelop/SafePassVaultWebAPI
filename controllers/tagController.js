@@ -28,11 +28,12 @@ exports.createTag = async (req, res) => {
 exports.getAllTagsByType = async (req, res) => {
   try {
     const tags = (await Tag.find({
-      // tagType: req.params.type,
+      tagType: req.params.type,
     })).map((tag) => {
       return {
         _id: tag._id,
         label: tag.name,
+        type: tag.tagType,
       };
     });
 
