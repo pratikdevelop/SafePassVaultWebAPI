@@ -29,7 +29,7 @@ jobs:
           echo "${{ secrets.PROD_ENV_FILE }}" > .env
       
       - name: Restart Backend with pm2
-        run: pm2 restart index
+        run: pm2 start index
 
   docker-build:
     runs-on: ubuntu-latest
