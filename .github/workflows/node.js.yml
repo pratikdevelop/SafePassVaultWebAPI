@@ -2,7 +2,7 @@ name: Node.js CI/CD with Kubernetes and Helm
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
   deploy-on-ec2:
@@ -13,21 +13,23 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-      
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v3
         with:
           node-version: ${{ matrix.node-version }}
-          cache: 'npm'
-      
+          cache: "npm"
+
       - name: Install Dependencies
         run: npm install
+
+      - name: Install PM2
+        run: npm install -g pm2
 
       - name: Set up Environment Variables
         run: |
           touch .env
           echo "${{ secrets.PROD_ENV_FILE }}" > .env
-      
+
       - name: Restart Backend with pm2
         run: pm2 restart BackendAPI
 
@@ -41,7 +43,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '20.x'  # Match the Node.js version used in the deploy job
+          node-version: "20.x" # Match the Node.js version used in the deploy job
 
       - name: Install Dependencies
         run: npm install
@@ -66,11 +68,11 @@ jobs:
       - name: Build Docker Image with Environment Variables
         run: |
           docker build --build-arg MONGO_INITDB_ROOT_USERNAME=${{ secrets.MONGO_INITDB_ROOT_USERNAME }} \
-                       --build-arg MONGO_INITDB_ROOT_PASSWORD=${{ secrets.MONGO_INITDB_ROOT_PASSWORD }} \
-                       --build-arg MONGO_DB_USERNAME=${{ secrets.MONGO_DB_USERNAME }} \
-                       --build-arg MONGO_DB_PASSWORD=${{ secrets.MONGO_DB_PASSWORD }} \
-                       --build-arg MONGO_DB=${{ secrets.MONGO_DB }} \
-                       -t developerhacker/password-app-api_backend .
+                        --build-arg MONGO_INITDB_ROOT_PASSWORD=${{ secrets.MONGO_INITDB_ROOT_PASSWORD }} \
+                        --build-arg MONGO_DB_USERNAME=${{ secrets.MONGO_DB_USERNAME }} \
+                        --build-arg MONGO_DB_PASSWORD=${{ secrets.MONGO_DB_PASSWORD }} \
+                        --build-arg MONGO_DB=${{ secrets.MONGO_DB }} \
+                        -t developerhacker/password-app-api_backend .
 
       - name: Push Docker Image to Docker Hub
         run: docker push developerhacker/password-app-api_backend
