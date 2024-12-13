@@ -1,46 +1,86 @@
-// models/Secret.js
+// // models/Secret.js
 
-const mongoose = require('mongoose');
-const crypto = require('crypto');
+const mongoose = require("mongoose");
+const crypto = require("crypto");
 
 // Define the Secret schema
-const secretSchema = new mongoose.Schema({
-    name: { type: String, required: true },
-    value: { type: String, required: true },  // This will store the encrypted data
-    type: { type: String, required: true },   // e.g. 'api_key', 'credential', 'env_var'
-    description: { type: String, default: '' },
-    createdAt: { type: Date, default: Date.now }
-});
-
-// Encrypt the data before saving to the database
-secretSchema.pre('save', function (next) {
-    if (this.isModified('value')) {
-        this.value = encrypt(this.value);
+const secretSchema = new mongoose.Schema(
+    {
+        name: {
+            type: String,
+            required: true,
+        },
+        type: {
+            type: String,
+            default: "",
+        },
+        value: {
+            type: String,
+        },
+        description: {
+            type: String,
+            default: "",
+        },
+        format: {
+            type: String,
+            default: "text",
+        },
+        encrypt: {
+            type: Boolean,
+            default: false,
+        },
+        category: {
+            type: String,
+            default: "",
+        },
+        expirationDate: {
+            type: Date,
+            default: null,
+        },
+        createdBy: {
+            type: mongoose.Schema.ObjectId,
+            ref: "User",
+        },
+        createdDate: {
+            type: Date,
+            default: Date.now,
+        },
+        file: {
+            type: String,
+            default: "",
+        },
+        tags: [{
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Tag",
+        }],
+        keyValuePairs: [
+            {
+                key: {
+                    type: String,
+                    required: true,
+                },
+                value: {
+                    type: String,
+                    required: true,
+                },
+            },
+        ],
+        jsonValue: {
+            type: String,
+            default: "",
+        },
+        folderId: {
+            // New field to associate with a folder
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Folder",
+            required: true, // Make it required if every password must belong to a folder
+        },
+    },
+    {
+        timestamps: true, // Automatically manage createdAt and updatedAt
     }
-    next();
-});
+);
 
-// Helper function for encryption
-function encrypt(text) {
-    const cipher = crypto.createCipher('aes-256-cbc', process.env.SECRET_KEY);
-    let encrypted = cipher.update(text, 'utf8', 'hex');
-    encrypted += cipher.final('hex');
-    return encrypted;
-}
-
-// Helper function for decryption
-function decrypt(encryptedText) {
-    const decipher = crypto.createDecipher('aes-256-cbc', process.env.SECRET_KEY);
-    let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-    return decrypted;
-}
-
-// Create a method to get decrypted data
-secretSchema.methods.getDecryptedValue = function () {
-    return decrypt(this.value);
-};
-
-const Secret = mongoose.model('Secret', secretSchema);
+const Secret = mongoose.model("Secret", secretSchema);
 
 module.exports = Secret;

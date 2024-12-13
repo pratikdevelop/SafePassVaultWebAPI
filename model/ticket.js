@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const ticketSchema = new mongoose.Schema({
   ticketId: {
     type: String,
@@ -9,6 +10,10 @@ const ticketSchema = new mongoose.Schema({
   category: String,
   categorySubtype: String,
   description: String,
+  userId: {
+    type: mongoose.Schema.ObjectId,
+    ref: 'User',
+  },
   priority: {
     type: String,
     enum: ["Low", "Medium", "High"],
@@ -39,3 +44,4 @@ ticketSchema.pre("save", function (next) {
 });
 
 const Ticket = mongoose.model("Ticket", ticketSchema);
+module.exports = Ticket;

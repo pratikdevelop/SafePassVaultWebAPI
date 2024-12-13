@@ -9,23 +9,8 @@ exports.getUserAuditLogs = async (req, res) => {
             'userId',
         );
 
-        // Dynamically populate the `entityId` based on the `entity` value
-        const populatedLogs = await Promise.all(logs.map(async (log) => {
-            const entityModelName = log.entity.charAt(0).toLowerCase() + log.entity.slice(1); // Capitalizing first letter to match model name
-            try {
-                const model = require(`../model/${entityModelName}`); // Dynamically require the model
-                const entityData = await model.findById(log.entityId); // Find the entity by its ID
-                log.entityData = entityData; // Attach the populated data
-                return log; // Return the log with populated data
-            } catch (error) {
-                console.error(`Error populating entity ${log.entity}:`, error);
-                log.entityData = null; // If the entity population fails, set entityData to null
-                return log;
-            }
-        }));
-
         // Return the populated logs
-        return res.status(200).json({ logs: populatedLogs });
+        return res.status(200).json({ logs });
 
     } catch (error) {
         console.error('Error fetching audit logs:', error);

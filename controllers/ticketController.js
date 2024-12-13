@@ -1,87 +1,121 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const axios = require('axios');
-const Ticket = require('../models/Ticket'); // Import the Ticket model
+const axios = require("axios");
+const Ticket = require("../model/ticket"); // Import the Ticket model
+const User = require("../model/user");
 
 // Jira Configuration
-const JIRA_BASE_URL = 'https://your-domain.atlassian.net';
-const JIRA_PROJECT_KEY = 'YOUR_PROJECT_KEY';
-const JIRA_AUTH_TOKEN = 'Basic YOUR_ENCODED_API_TOKEN';
+const JIRA_BASE_URL = process.env.JIRA_BASE_URL;
+const JIRA_PROJECT_KEY = process.env.JIRA_PROJECT_KEY;
+const JIRA_AUTH_TOKEN = process.env.JIRA_AUTH_TOKEN
+const email = process.env.MONGO_INITDB_ROOT_USERNAME;
 
 // Controller Functions
 
-// Create a new ticket
 const createTicket = async (req, res) => {
   try {
     const {
-      name,
-      email,
       category,
       categorySubtype,
       description,
       priority,
       severity,
       attachments,
-      userAgent,
+      fixVersionId,
+      issueTypeId,
+      reporterId,
+      dueDate,
+      labels,
+      parentTicketKey,
+      environment,
+      customFields, // To handle custom fields dynamically
     } = req.body;
 
+    const userId = req.user._id;
+    const user = await User.findById(userId);
+    // Create and save the new ticket in your DB
     const newTicket = new Ticket({
-      name,
-      email,
+      name: user.name,
+      email: user.email,
+      userId: req.user._id,
       category,
       categorySubtype,
       description,
       priority,
       severity,
       attachments,
-      userAgent: req.headers['user-agent'],
+      userAgent: req.headers["user-agent"],
     });
 
     await newTicket.save();
 
-    // Create a Jira issue
+    // // Prepare data for JIRA issue creation
     const jiraIssueData = {
       fields: {
         project: {
-          key: JIRA_PROJECT_KEY,
+          key: "KAN", // Use the correct project key (e.g., "KAN" or the correct project ID)
         },
-        summary: `Ticket: ${name}`,
-        description: `Category: ${category}\nSubtype: ${categorySubtype}\nDescription: ${description}\nPriority: ${priority}\nSeverity: ${severity}\nUser Email: ${email}`,
+        summary: "Ticket: linku user",
+        description:
+          "Category: general-feedback\nSubtype: jjlkjlkjklj\nDescription: lkkljlkj\nPriority: Medium\nSeverity: Moderate\nUser Email: linku@mailinator.com",
         issuetype: {
-          name: 'Task', // Adjust issue type as per your Jira setup
+          name: 'Task',
         },
-        priority: {
-          name: priority || 'Medium',
+        labels: ["bugfix", "blitz_test"], // Remove empty label or use valid labels
+        reportter: {
+          name: user.name,
         },
       },
     };
 
-    const jiraResponse = await axios.post(
-      `${JIRA_BASE_URL}/rest/api/2/issue`,
-      jiraIssueData,
+    // Send the request to JIRA to create the issue
+    fetch(
+      `${JIRA_BASE_URL}/rest/api/2/issue`, // Make sure JIRA_BASE_URL is defined in your environment
+
       {
         headers: {
-          Authorization: JIRA_AUTH_TOKEN,
-          'Content-Type': 'application/json',
+          Authorization: `Basic ${Buffer.from(
+            `${email}:${process.env.JIRA_AUTH_TOKEN}`
+          ).toString("base64")}`,
+          Accept: "application/json",
+          "Content-Type": "application/json",
         },
-      }
-    );
 
-    res.status(201).json({
-      success: true,
-      message: 'Ticket created successfully and added to Jira',
-      ticket: newTicket,
-      jiraIssue: jiraResponse.data,
-    });
+        method: "POST",
+        body: JSON.stringify(jiraIssueData),
+      }
+    )
+      .then((response) => {
+        return response.json();
+      })
+      .then((data) => {
+        console.log(data);
+        res.status(201).json({
+          success: true,
+          message: "Ticket created successfully and added to Jira",
+          ticket: newTicket,
+          jiraIssue: data.data,
+        });
+      })
+
+
+      .catch((error) => {
+        console.error(error.data);
+        res.status(500).json({
+          success: false,
+          message: "Failed to create ticket in Jira",
+          error: error,
+        });
+      });
   } catch (error) {
+    console.error("Error creating ticket:", JSON.stringify(error));
     res.status(500).json({
       success: false,
-      message: 'Error creating ticket',
+      message: "Error creating ticket",
       error: error.message,
     });
   }
 };
-
 // Get all tickets
 const getAllTickets = async (req, res) => {
   try {
@@ -93,7 +127,7 @@ const getAllTickets = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Error fetching tickets',
+      message: "Error fetching tickets",
       error: error.message,
     });
   }
@@ -108,7 +142,7 @@ const getTicketById = async (req, res) => {
     if (!ticket) {
       return res.status(404).json({
         success: false,
-        message: 'Ticket not found',
+        message: "Ticket not found",
       });
     }
 
@@ -119,7 +153,7 @@ const getTicketById = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Error fetching ticket',
+      message: "Error fetching ticket",
       error: error.message,
     });
   }
@@ -136,19 +170,19 @@ const updateTicket = async (req, res) => {
     if (!ticket) {
       return res.status(404).json({
         success: false,
-        message: 'Ticket not found',
+        message: "Ticket not found",
       });
     }
 
     res.status(200).json({
       success: true,
-      message: 'Ticket updated successfully',
+      message: "Ticket updated successfully",
       ticket,
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Error updating ticket',
+      message: "Error updating ticket",
       error: error.message,
     });
   }
@@ -163,29 +197,27 @@ const deleteTicket = async (req, res) => {
     if (!ticket) {
       return res.status(404).json({
         success: false,
-        message: 'Ticket not found',
+        message: "Ticket not found",
       });
     }
 
     res.status(200).json({
       success: true,
-      message: 'Ticket deleted successfully',
+      message: "Ticket deleted successfully",
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Error deleting ticket',
+      message: "Error deleting ticket",
       error: error.message,
     });
   }
 };
 
-
 module.exports = {
-    createTicket,
-    getTickets,
-    getTicket,
-    updateTicket,
-    deleteTicket
-    
-}
+  createTicket,
+  getAllTickets,
+  getTicketById,
+  updateTicket,
+  deleteTicket,
+};
