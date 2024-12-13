@@ -2,7 +2,7 @@ name: Node.js CI/CD with Kubernetes and Helm
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
   deploy-on-ec2:
@@ -13,23 +13,25 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-      
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v3
         with:
           node-version: ${{ matrix.node-version }}
-          cache: 'npm'
-      
+          cache: "npm"
+
       - name: Install Dependencies
         run: npm install
+
+      - name: Install PM2
+        run: npm install -g pm2
 
       - name: Set up Environment Variables
         run: |
           touch .env
           echo "${{ secrets.PROD_ENV_FILE }}" > .env
-      
+
       - name: Restart Backend with pm2
-        run: pm2 restart index
+        run: pm2 restart BackendAPI
 
   docker-build:
     runs-on: ubuntu-latest
@@ -41,7 +43,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '20.x'  # Match the Node.js version used in the deploy job
+          node-version: "20.x" # Match the Node.js version used in the deploy job
 
       - name: Install Dependencies
         run: npm install
@@ -66,47 +68,47 @@ jobs:
       - name: Build Docker Image with Environment Variables
         run: |
           docker build --build-arg MONGO_INITDB_ROOT_USERNAME=${{ secrets.MONGO_INITDB_ROOT_USERNAME }} \
-                       --build-arg MONGO_INITDB_ROOT_PASSWORD=${{ secrets.MONGO_INITDB_ROOT_PASSWORD }} \
-                       --build-arg MONGO_DB_USERNAME=${{ secrets.MONGO_DB_USERNAME }} \
-                       --build-arg MONGO_DB_PASSWORD=${{ secrets.MONGO_DB_PASSWORD }} \
-                       --build-arg MONGO_DB=${{ secrets.MONGO_DB }} \
-                       -t developerhacker/password-app-api_backend .
+                        --build-arg MONGO_INITDB_ROOT_PASSWORD=${{ secrets.MONGO_INITDB_ROOT_PASSWORD }} \
+                        --build-arg MONGO_DB_USERNAME=${{ secrets.MONGO_DB_USERNAME }} \
+                        --build-arg MONGO_DB_PASSWORD=${{ secrets.MONGO_DB_PASSWORD }} \
+                        --build-arg MONGO_DB=${{ secrets.MONGO_DB }} \
+                        -t developerhacker/password-app-api_backend .
 
       - name: Push Docker Image to Docker Hub
         run: docker push developerhacker/password-app-api_backend
 
-  deploy-to-k8s:
-    runs-on: ubuntu-latest
-    needs: docker-build
-    environment: production
+  # deploy-to-k8s:
+  #   runs-on: ubuntu-latest
+  #   needs: docker-build
+  #   environment: production
 
-    steps:
-      - name: Checkout Repo
-        uses: actions/checkout@v3
+  #   steps:
+  #     - name: Checkout Repo
+  #       uses: actions/checkout@v3
 
-      - name: Set up Helm
-        uses: azure/setup-helm@v2
-        with:
-          version: v3.9.0  # You can specify the Helm version you want to use.
+  #     - name: Set up Helm
+  #       uses: azure/setup-helm@v2
+  #       with:
+  #         version: v3.9.0  # You can specify the Helm version you want to use.
 
-      - name: Set up Kubernetes Context
-        run: |
-          kubectl config set-cluster my-cluster --server=${{ secrets.K8S_SERVER }} --certificate-authority=${{ secrets.K8S_CA }}
-          kubectl config set-credentials my-user --token=${{ secrets.K8S_TOKEN }}
-          kubectl config set-context my-context --cluster=my-cluster --user=my-user
-          kubectl config use-context my-context
+  #     - name: Set up Kubernetes Context
+  #       run: |
+  #         kubectl config set-cluster my-cluster --server=${{ secrets.K8S_SERVER }} --certificate-authority=${{ secrets.K8S_CA }}
+  #         kubectl config set-credentials my-user --token=${{ secrets.K8S_TOKEN }}
+  #         kubectl config set-context my-context --cluster=my-cluster --user=my-user
+  #         kubectl config use-context my-context
 
-      - name: Helm Upgrade/Install Application
-        run: |
-          helm upgrade --install password-app-api_backend ./helm \
-            --set image.repository=developerhacker/password-app-api_backend \
-            --set image.tag=${{ github.sha }} \
-            --set mongo.dbUsername=${{ secrets.MONGO_DB_USERNAME }} \
-            --set mongo.dbPassword=${{ secrets.MONGO_DB_PASSWORD }} \
-            --set mongo.db=${{ secrets.MONGO_DB }} \
-            --namespace production \
-            --wait
+  #     - name: Helm Upgrade/Install Application
+  #       run: |
+  #         helm upgrade --install password-app-api_backend ./helm \
+  #           --set image.repository=developerhacker/password-app-api_backend \
+  #           --set image.tag=${{ github.sha }} \
+  #           --set mongo.dbUsername=${{ secrets.MONGO_DB_USERNAME }} \
+  #           --set mongo.dbPassword=${{ secrets.MONGO_DB_PASSWORD }} \
+  #           --set mongo.db=${{ secrets.MONGO_DB }} \
+  #           --namespace production \
+  #           --wait
 
-      - name: Verify Kubernetes Deployment
-        run: |
-          kubectl rollout status deployment/password-app-api_backend --namespace production
+  #     - name: Verify Kubernetes Deployment
+  #       run: |
+  #         kubectl rollout status deployment/password-app-api_backend --namespace production
