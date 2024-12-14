@@ -26,6 +26,7 @@ const invitationRoutes = require('./routes/invitiationRoutes');
 const organizationRoutes = require('./routes/organizationRoutes')
 const folderRoutes = require('./routes/folderRoutes'); // Adjust the path as necessary
 const addressRoutes = require('./routes/addressRoutes'); // Import routes
+const ticketRoutes = require('./routes/ticketRoutes')
 
 const port = process.env.PORT || 3000;
 app.get("/", (req, res) => {
@@ -54,8 +55,8 @@ app.use('/api/secrets', secretRoutes);
 app.use('/api/audit', auditRoutes);
 app.use('/api/invitation', invitationRoutes);
 app.use('/api/organization', organizationRoutes);
-
-app.use('/api/sso-settings', ssoRoutes)
+app.use('/api/sso-settings', ssoRoutes);
+app.use('/api/tickets', ticketRoutes);
 
 app.listen(port, () => {
   console.log(`Server started on port ${port}`);

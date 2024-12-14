@@ -4,10 +4,22 @@ const AuditLog = require('../model/Auditlogs'); // Import the Audit Log model
 // Create a new secret (e.g., API key, credential)
 exports.createSecret = async (req, res) => {
     try {
-        const { name, value, type, description } = req.body;
-
         // Create new secret
-        const secret = new Secret({ name, value, type, description });
+        if (req.body.tags) {
+            const tagsId = [];
+            req.body.tags.forEach((tag) => {
+                if (tag?.id)
+                    tagsId.push(tag?.id)
+            })
+            req.body['tags'] = tagsId;
+            req.body['createdBy'] = req.user._id;
+        }
+        console.log(
+            'req body',
+            req.body
+        )
+
+        const secret = new Secret(req.body);
 
         // Save to the database
         await secret.save();
@@ -16,7 +28,7 @@ exports.createSecret = async (req, res) => {
         await AuditLog.create({
             userId: req.user._id,
             action: 'create',
-            entity: 'secret',
+            entity: 'secrets',
             entityId: secret._id,
             newValue: secret,
             ipAddress: req.ip,
@@ -34,28 +46,18 @@ exports.createSecret = async (req, res) => {
 exports.getAllSecrets = async (req, res) => {
     try {
         const secrets = await Secret.find();
-
-        // Decrypt each secret before sending
-        const decryptedSecrets = secrets.map(secret => ({
-            name: secret.name,
-            value: secret.getDecryptedValue(),
-            type: secret.type,
-            description: secret.description,
-            createdAt: secret.createdAt
-        }));
-
         // Create an audit log entry for retrieving secrets
         await AuditLog.create({
             userId: req.user._id,
             action: 'view',
-            entity: 'secret',
+            entity: 'secrets',
             entityId: null, // No specific entity ID for this action
-            newValue: decryptedSecrets,
+            newValue: secrets,
             ipAddress: req.ip,
             userAgent: req.headers['user-agent']
         });
 
-        res.status(200).json({ decryptedSecrets });
+        res.status(200).json({ secrets });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Failed to retrieve secrets' });
@@ -74,7 +76,7 @@ exports.getSecretById = async (req, res) => {
         await AuditLog.create({
             userId: req.user._id,
             action: 'view',
-            entity: 'secret',
+            entity: 'secrets',
             entityId: secret._id,
             newValue: secret,
             ipAddress: req.ip,
@@ -100,7 +102,7 @@ exports.updateSecret = async (req, res) => {
         await AuditLog.create({
             userId: req.user._id,
             action: 'update',
-            entity: 'secret',
+            entity: 'secrets',
             entityId: secret._id,
             oldValue: { ...secret._doc }, // Store old values
             newValue: secret,
@@ -127,7 +129,7 @@ exports.deleteSecret = async (req, res) => {
         await AuditLog.create({
             userId: req.user._id,
             action: 'delete',
-            entity: 'secret',
+            entity: 'secrets',
             entityId: secret._id,
             oldValue: secret,
             ipAddress: req.ip,
@@ -153,7 +155,7 @@ exports.searchSecretsByName = async (req, res) => {
         await AuditLog.create({
             userId: req.user._id,
             action: 'search',
-            entity: 'secret',
+            entity: 'secrets',
             entityId: null, // No specific entity ID for this action
             newValue: secrets,
             ipAddress: req.ip,

@@ -26,6 +26,10 @@ exports.createFolder = async (req, res) => {
 
     res.status(201).json(folder);
   } catch (error) {
+    console.error(
+      'eee', error
+    );
+
     res.status(500).json({ error: "Internal server error" });
   }
 };
@@ -193,13 +197,14 @@ exports.searchFolders = async (req, res) => {
 
     const folders = (await Folder.find({
       name: { $regex: new RegExp(searchTerm, 'i') },
-      type: type,
+      // type: type,
       user: ownerId
     })).map(
       (folder) => {
         return {
           _id: folder._id,
           label: folder.name,
+          type: type
         };
       }
     );
