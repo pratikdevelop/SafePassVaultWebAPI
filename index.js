@@ -44,10 +44,10 @@ app.use(cors());
 app.use((req, res, next) => {
   res.setHeader("Content-Security-Policy", `
     default-src 'self';
-    connect-src 'self' http://localhost:3000 https://yourdomain.com; 
-    script-src 'self' 'unsafe-inline' https://yourdomain.com; 
-    style-src 'self' 'unsafe-inline' https://yourdomain.com;
-    img-src 'self' https://yourdomain.com;
+    connect-src 'self' http://localhost:3000 https://vixol72czg.execute-api.us-east-1.amazonaws.com; 
+    script-src 'self' 'unsafe-inline' https://vixol72czg.execute-api.us-east-1.amazonaws.com; 
+    style-src 'self' 'unsafe-inline' https://vixol72czg.execute-api.us-east-1.amazonaws.com;
+    img-src 'self' https://vixol72czg.execute-api.us-east-1.amazonaws.com;
     font-src 'self' https://fonts.gstatic.com;
   `);  // Ensure this is a properly formatted string without extra spaces or newlines
 
