@@ -8,7 +8,7 @@ const otplib = require("otplib");
 const qrcode = require("qrcode");
 const jwt = require("jsonwebtoken");
 const fs = require("fs");
-const { s3 } = require("../config/awsconfig");
+const  s3  = require("../config/awsconfig");
 const { sendSms } = require("../config/twilloConfig");
 const mongoose = require("mongoose");
 const { validateUserRegistration } = require("../utlis/validators"); // Import validation function
@@ -161,7 +161,6 @@ exports.uploadFile = async (req, res) => {
       Key: `uploads/${Date.now()}_${req.file.originalname}`,
       Body: req.file.buffer,
       ContentType: req.file.mimetype,
-      ACL: "public-read",
     };
     const data = await s3.upload(params).promise();
     const user = await User.findById(req.user._id);

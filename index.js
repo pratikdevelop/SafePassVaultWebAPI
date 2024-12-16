@@ -42,16 +42,13 @@ const corsOptions = {
 app.use(cors());
 
 app.use((req, res, next) => {
-  res.setHeader("Content-Security-Policy", `
-    default-src 'self';
-    connect-src 'self' http://localhost:3000 https://vixol72czg.execute-api.us-east-1.amazonaws.com; 
-    script-src 'self' 'unsafe-inline' https://vixol72czg.execute-api.us-east-1.amazonaws.com; 
-    style-src 'self' 'unsafe-inline' https://vixol72czg.execute-api.us-east-1.amazonaws.com;
-    img-src 'self' https://vixol72czg.execute-api.us-east-1.amazonaws.com;
-    font-src 'self' https://fonts.gstatic.com;
-  `);  // Ensure this is a properly formatted string without extra spaces or newlines
+  // Correctly format the Content-Security-Policy header as a single line
+  res.setHeader(
+    "Content-Security-Policy",
+    "default-src 'self'; connect-src 'self' http://localhost:3000 https://vixol72czg.execute-api.us-east-1.amazonaws.com; script-src 'self' 'unsafe-inline' https://vixol72czg.execute-api.us-east-1.amazonaws.com; style-src 'self' 'unsafe-inline' https://vixol72czg.execute-api.us-east-1.amazonaws.com; img-src 'self' https://vixol72czg.execute-api.us-east-1.amazonaws.com; font-src 'self' https://fonts.gstatic.com;"
+  );
 
-  // Other security headers...
+  // Other security headers
   res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   res.setHeader("Referrer-Policy", "no-referrer");
   res.setHeader("X-Content-Type-Options", "nosniff");
@@ -60,6 +57,7 @@ app.use((req, res, next) => {
 
   next();
 });
+
 
 app.get("/", (req, res) => {
   res.send("Hello World");
