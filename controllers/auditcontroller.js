@@ -1,36 +1,54 @@
 const AuditLog = require('../model/Auditlogs'); // Adjust path accordingly
 
 exports.getUserAuditLogs = async (req, res) => {
+    const { action, entity, searchTerm, start, end } = req.query;
+    console.log(req.query);
+
+    const userId = req.user._id;
+
     try {
-        const userId = req.user._id;
+        // Build the query object dynamically
+        const query = { userId };
 
-        // Fetch audit logs for the user
-        const logs = await AuditLog.find({ userId }).populate(
-            'userId',
-        );
+        if (action && action !== 'all') {
+            query.action = action; // Filter by action
+        }
 
-        // Dynamically populate the `entityId` based on the `entity` value
-        const populatedLogs = await Promise.all(logs.map(async (log) => {
-            const entityModelName = log.entity.charAt(0).toLowerCase() + log.entity.slice(1); // Capitalizing first letter to match model name
-            try {
-                const model = require(`../model/${entityModelName}`); // Dynamically require the model
-                const entityData = await model.findById(log.entityId); // Find the entity by its ID
-                log.entityData = entityData; // Attach the populated data
-                return log; // Return the log with populated data
-            } catch (error) {
-                console.error(`Error populating entity ${log.entity}:`, error);
-                log.entityData = null; // If the entity population fails, set entityData to null
-                return log;
-            }
-        }));
+        if (entity && entity !== 'all') {
+            // Use regex to allow partial matches on the entity field
+            query.$or = [
+                { entity: { $regex: entity, $options: 'i' } }, // Matches in entity
+            ];
+        }
+
+        if (searchTerm) {
+            // Add regex search for general matching
+            query.$or = [
+                { entity: { $regex: searchTerm, $options: 'i' } }, // Matches in entity
+                { 'newValue.label': { $regex: searchTerm, $options: 'i' } } // Matches in newValue.label
+            ];
+        }
+
+        if (start && end && start !== 'null' && end !== 'null') {
+            query.createdAt = { $gte: start, $lte: end };
+
+        }
+
+        console.log('Query:', query.$or);
+
+        // Fetch filtered audit logs for the user
+        const logs = await AuditLog.find(query)
+            .populate('userId') // Populate user details
+            .sort({ createdAt: -1 }) // Sort by creation date (most recent first)
+            .exec();
 
         // Return the populated logs
-        return res.status(200).json({ logs: populatedLogs });
-
+        return res.status(200).json({ logs });
     } catch (error) {
-        console.error('Error fetching audit logs:', error);
-        return res.status(500).json({ error: 'Failed to fetch audit logs', details: error.message });
+        console.error('Error fetching logs:', error);
+        return res.status(500).json({ message: 'Error fetching logs', error });
     }
+
 };
 
 exports.searchAuditLogs = async (action, startDate, endDate) => {

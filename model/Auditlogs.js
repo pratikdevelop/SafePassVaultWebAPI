@@ -9,12 +9,10 @@ const AuditLogSchema = new mongoose.Schema({
     },
     action: {
         type: String,
-        enum: ['create', 'update', 'delete', 'view', 'share', 'access'],
         required: true
     },
     entity: {
         type: String,
-        enum: ['passwords', 'notes', 'cards', 'proof', 'files', 'address', 'secrets', 'tag', 'folder'],
         required: true
     },
     entityId: {
