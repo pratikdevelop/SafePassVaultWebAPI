@@ -1,31 +1,86 @@
-# Use the latest 2.1 version of CircleCI pipeline process engine.
-# See: https://circleci.com/docs/configuration-reference
 version: 2.1
 
-# Define a job to be invoked later in a workflow.
-# See: https://circleci.com/docs/jobs-steps/#jobs-overview & https://circleci.com/docs/configuration-reference/#jobs
 jobs:
-  say-hello:
-    # Specify the execution environment. You can specify an image from Docker Hub or use one of our convenience images from CircleCI's Developer Hub.
-    # See: https://circleci.com/docs/executor-intro/ & https://circleci.com/docs/configuration-reference/#executor-job
+  deploy-on-ec2:
     docker:
-      # Specify the version you desire here
-      # See: https://circleci.com/developer/images/image/cimg/base
-      - image: cimg/base:current
-
-    # Add steps to the job
-    # See: https://circleci.com/docs/jobs-steps/#steps-overview & https://circleci.com/docs/configuration-reference/#steps
+      - image: circleci/node:20
     steps:
-      # Checkout the code as the first step.
       - checkout
-      - run:
-          name: "Say hello"
-          command: "echo Hello, World!"
 
-# Orchestrate jobs using workflows
-# See: https://circleci.com/docs/workflows/ & https://circleci.com/docs/configuration-reference/#workflows
+      - run:
+          name: Install Dependencies
+          command: npm install
+
+      - run:
+          name: Install PM2
+          command: npm install -g pm2
+
+      - run:
+          name: Add SSH Key for EC2
+          command: |
+            echo "$SSH_PRIVATE_KEY" > api.pem
+            chmod 400 api.pem
+
+      - run:
+          name: Transfer Files to EC2
+          command: |
+            scp -o StrictHostKeyChecking=no -i api.pem -r . ubuntu@ec2-18-207-149-208.compute-1.amazonaws.com:/home/ubuntu/app
+
+      - run:
+          name: Deploy Application on EC2
+          command: |
+            ssh -o StrictHostKeyChecking=no -i api.pem ubuntu@ec2-18-207-149-208.compute-1.amazonaws.com <<EOF
+            cd /home/ubuntu/app
+            npm install
+            pm2 restart BackendAPI
+            EOF
+
+  docker-build:
+    docker:
+      - image: circleci/node:20
+    steps:
+      - checkout
+
+      - run:
+          name: Install Dependencies
+          command: npm install
+
+      - setup_remote_docker:
+          version: 20.10.8
+
+      - run:
+          name: Log in to Docker Hub
+          command: |
+            echo $DOCKER_HUB_ACCESS_TOKEN | docker login -u "$DOCKER_HUB_USERNAME" --password-stdin
+
+      - run:
+          name: Create .env for Docker Build
+          command: |
+            echo "MONGO_INITDB_ROOT_USERNAME=$MONGO_INITDB_ROOT_USERNAME" >> .env
+            echo "MONGO_INITDB_ROOT_PASSWORD=$MONGO_INITDB_ROOT_PASSWORD" >> .env
+            echo "MONGO_DB_USERNAME=$MONGO_DB_USERNAME" >> .env
+            echo "MONGO_DB_PASSWORD=$MONGO_DB_PASSWORD" >> .env
+            echo "MONGO_DB=$MONGO_DB" >> .env
+
+      - run:
+          name: Build Docker Image with Environment Variables
+          command: |
+            docker build --build-arg MONGO_INITDB_ROOT_USERNAME=$MONGO_INITDB_ROOT_USERNAME \
+                          --build-arg MONGO_INITDB_ROOT_PASSWORD=$MONGO_INITDB_ROOT_PASSWORD \
+                          --build-arg MONGO_DB_USERNAME=$MONGO_DB_USERNAME \
+                          --build-arg MONGO_DB_PASSWORD=$MONGO_DB_PASSWORD \
+                          --build-arg MONGO_DB=$MONGO_DB \
+                          -t developerhacker/password-app-api_backend .
+
+      - run:
+          name: Push Docker Image to Docker Hub
+          command: docker push developerhacker/password-app-api_backend
+
 workflows:
-  say-hello-workflow: # This is the name of the workflow, feel free to change it to better match your workflow.
-    # Inside the workflow, you define the jobs you want to run.
+  version: 2
+  build-and-deploy:
     jobs:
-      - say-hello
+      - docker-build
+      - deploy-on-ec2:
+          requires:
+            - docker-build

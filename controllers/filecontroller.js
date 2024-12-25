@@ -192,6 +192,101 @@ module.exports = {
     }
   },
 
+  getFile: async (req, res) => {
+    try {
+      const file = await File.findById(req.params.id)
+        .populate('folderId')
+        .populate({
+          path: "ownerId",
+          select: "name"
+        });
+
+      if (!file || file.isDeleted) {
+        return res.status(404).json({ message: 'File not found' });
+      }
+
+      // Create an audit log entry for the file retrieval
+      await AuditLog.create({
+        userId: req.user._id,
+        action: 'view',
+        entity: 'file',
+        entityId: file._id,
+        newValue: file,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent']
+      });
+
+      res.status(200).json(file);
+    } catch (error) {
+      res.status(500).json({ message: 'Error retrieving file', error: error.message });
+    }
+  },
+
+  
+  downloadFile: async (req, res) => {
+    try {
+      const file = await File.findById(req.params.id);
+
+      if (!file || file.isDeleted) {
+        return res.status(404).json({ message: 'File not found' });
+      }
+
+      const localFilePath = file.path;
+
+      // Check if the file exists locally
+      if (fs.existsSync(localFilePath)) {
+        res.setHeader('Content-Disposition', `attachment; filename="${file.originalName}"`);
+        res.setHeader('Content-Type', 'application/octet-stream');
+
+        const fileStream = fs.createReadStream(localFilePath);
+        fileStream.pipe(res);
+
+        // Create an audit log entry for the download action
+        await AuditLog.create({
+          userId: req.user._id,
+          action: 'download',
+          entity: 'file',
+          entityId: file._id,
+          newValue: { filename: file.originalName, path: file.path },
+          ipAddress: req.ip,
+          userAgent: req.headers['user-agent']
+        });
+      } else {
+        // If the file is not found locally, check if it is in S3
+        const params = {
+          Bucket: process.env.S3_BUCKET_NAME_FILE_STORAGE,
+          Key: `files/${file.originalName}`,
+        };
+
+        try {
+          const s3Stream = s3.getObject(params).createReadStream();
+          res.setHeader('Content-Disposition', `attachment; filename="${file.originalName}"`);
+          res.setHeader('Content-Type', 'application/octet-stream');
+
+          s3Stream.pipe(res);
+
+          // Create an audit log entry for the download action
+          await AuditLog.create({
+            userId: req.user._id,
+            action: 'download',
+            entity: 'file',
+            entityId: file._id,
+            newValue: { filename: file.originalName, location: file.location },
+            ipAddress: req.ip,
+            userAgent: req.headers['user-agent']
+          });
+        } catch (err) {
+          console.error('Error fetching file from S3:', err);
+          return res.status(500).json({ message: 'Error fetching file from storage', error: err.message });
+        }
+      }
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      res.status(500).json({ message: 'Error downloading file', error: error.message });
+    }
+  },
+
+
   permanentlyDeleteFile: async (req, res) => {
     try {
       const file = await File.findById(req.params.id);
