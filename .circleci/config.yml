@@ -29,10 +29,10 @@ jobs:
       - run:
           name: Deploy Application on EC2
           command: |
-            ssh -o StrictHostKeyChecking=no -i api.pem ubuntu@ec2-18-207-149-208.compute-1.amazonaws.com << 'EOF'
-              cd /home/ubuntu/app
-              npm install
-              pm2 restart BackendAPI
+            ssh -o StrictHostKeyChecking=no -i api.pem ubuntu@ec2-18-207-149-208.compute-1.amazonaws.com <<EOF
+            cd /home/ubuntu/app
+            npm install
+            pm2 restart BackendAPI
             EOF
 
   docker-build:
