@@ -115,7 +115,10 @@ const userSchema = new mongoose.Schema({
   },
   passkeysForWebAuth: {
     type: Array,
-
+  },
+  securityPin:{
+    type:String
+    
   }
 });
 

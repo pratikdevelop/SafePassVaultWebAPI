@@ -429,7 +429,7 @@ exports.changePassword = async (req, res) => {
 exports.saveMfaSettings = async (req, res) => {
   try {
     const userId = req.user._id; // User ID from auth middleware
-    const { mfaEnabled, mfaMethod, totpSecret } = req.body;
+    const { mfaEnabled, mfaMethod, totpSecret, securityPin } = req.body;
 
     // Find the user by ID
     const user = await User.findById(userId);
@@ -440,6 +440,7 @@ exports.saveMfaSettings = async (req, res) => {
     if (user.mfaMethod === mfaMethod) {
       return res.status(400).json({ message: "MFA method already set" });
     }
+
     // Update user MFA settings
     user.mfaEnabled = mfaEnabled;
     user.mfaMethod = mfaMethod;
@@ -456,8 +457,10 @@ exports.saveMfaSettings = async (req, res) => {
           .status(400)
           .json({ success: false, message: "Invalid TOTP token" });
       }
+    } else if (mfaMethod === 'webauthn') {
+      // Verify WebAuthn credentials
+      user.securityPin = securityPin
     }
-
     // Save updated user settings
     await user.save();
 
@@ -1070,3 +1073,25 @@ exports.completeWebAuthnAuthentication = async (req, res) => {
       .json({ message: "Failed to complete WebAuthn authentication" });
   }
 };
+exports.verifysecurityPin = async(req, res) => {
+  try{
+    const { email,securityPin } = req.body;
+    const user = await User.findOne({email:email})
+
+    // Check if the user exists
+    if (!user) {
+        return res.status(404).json({ message: 'User  not found' });
+    }
+
+    // Verify the PIN
+    if (user.securityPin === securityPin) {
+        return res.status(200).json({ message: 'PIN verified successfully' });
+    } else {
+        return res.status(401).json({ message: 'Invalid PIN' });
+    }
+  }
+  catch(error) {
+    console.error("Error during PIN verification:", error);
+    res.status(500).json({ message: 'Failed to verify PIN' });
+  }
+}

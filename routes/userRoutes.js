@@ -203,4 +203,5 @@ router.post('/generate-private-key', userController.addPrivateAndPublicKey);
 router.get('/completeWebAuthRegisteration', userController.createWebAuthRegisteration);
 router.post('/complete-webauth-register', userController.completeWebAuthRegisteration);
 router.post('/webauthn/complete-authenticate', userController.completeWebAuthnAuthentication);
+router.post('/verify-security-pin', userController.verifysecurityPin)
 module.exports = router;
