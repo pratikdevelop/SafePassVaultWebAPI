@@ -24,18 +24,24 @@ app = FastAPI(
     docs_url="/api/swagger",
 )
 
-# CORS configuration
+origins = [
+    "http://localhost.tiangolo.com",
+    "https://localhost.tiangolo.com",
+    "http://localhost:4200",
+    "http://localhost:8080",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:4200", "https://safepassvault.co.in"],
-    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
-    allow_headers=["Content-Type", "Authorization"],
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
-
-# Rate limiting
-limiter = Limiter(key_func=get_remote_address)
-app.state.limiter = limiter
-app.add_middleware(limiter.middleware_class)
+# # Rate limiting
+# limiter = Limiter(key_func=get_remote_address)
+# app.state.limiter = limiter
+# # app.add_middleware(limiter)
 
 # Custom middleware for security headers (Helmet equivalent)
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):

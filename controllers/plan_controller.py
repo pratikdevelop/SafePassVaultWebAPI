@@ -2,7 +2,7 @@ from fastapi import HTTPException
 from models import Plan, Subscription  # Assuming Beanie models
 from typing import Dict, Any, List
 from datetime import datetime, timedelta
-import paypalrestsdk  # Requires configuration in config.py
+import paypalserversdk  # Requires configuration in config.py
 
 class PlanController:
     @staticmethod
@@ -39,14 +39,14 @@ class PlanController:
         
         try:
             # Configure PayPal SDK (assumes paypal_config in config.py)
-            paypalrestsdk.configure({
+            paypalserversdk.configure({
                 "mode": "sandbox",  # or "live"
                 "client_id": os.getenv("PAYPAL_CLIENT_ID"),
                 "client_secret": os.getenv("PAYPAL_CLIENT_SECRET"),
             })
 
             # Verify PayPal order
-            order = paypalrestsdk.Order.find(paypal_order_id)
+            order = paypalserversdk.Order.find(paypal_order_id)
             if order.status != "COMPLETED":
                 raise HTTPException(status_code=400, detail="Order not completed")
 
@@ -69,7 +69,7 @@ class PlanController:
             await new_subscription.insert()
 
             return {"message": "Subscription created successfully", "subscriptionId": str(new_subscription.id)}
-        except paypalrestsdk.exceptions.ResourceNotFound:
+        except paypalserversdk.exceptions.ResourceNotFound:
             raise HTTPException(status_code=404, detail="PayPal order not found")
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))

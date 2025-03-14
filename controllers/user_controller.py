@@ -17,11 +17,18 @@ from datetime import datetime, timedelta
 import pyotp
 import qrcode
 from io import BytesIO
-from simplewebauthn.server import (
+from webauthn import (
     generate_registration_options,
     verify_registration_response,
     generate_authentication_options,
     verify_authentication_response,
+    base64url_to_bytes,
+)
+from webauthn.helpers.structs import (
+    RegistrationCredential,
+    AuthenticationCredential,
+    PublicKeyCredentialRpEntity,
+    PublicKeyCredentialUserEntity,
 )
 
 load_dotenv()
@@ -59,8 +66,8 @@ class UserController:
         )
 
         # Create organization
-        organization = Organization(name=f"{name}'s Organization", owner=trial_user.id)
-        trial_user.organization = organization.id
+        organization = Organization(name=f"{name}'s Organization", owner_id=trial_user.id)
+        trial_user.organization_ids = [organization.id]
 
         # Generate confirmation code
         confirmation_code = str(secrets.randbelow(900000) + 100000)
@@ -125,7 +132,6 @@ class UserController:
 
         # Update user
         user.public_key = public_key_pem
-        user.private_key = private_key_pem
         user.passphrase = base64.b64encode(encrypted_passphrase).decode('utf-8')
         user.fingerprint = base64.b64encode(signature).decode('utf-8')
         await user.save()
@@ -169,7 +175,7 @@ class UserController:
     @staticmethod
     async def get_profile(user_id: str) -> Dict[str, Any]:
         """Retrieve user profile and plan details."""
-        user = await User.find_one(User.id == user_id).populate("organization")
+        user = await User.find_one(User.id == user_id)
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
@@ -362,8 +368,18 @@ class UserController:
             elif user.mfa_method == "totp":
                 return {"message": "TOTP MFA enabled", "userId": str(user.id), "mfaRequired": True, "mfaMethod": user.mfa_method}
             elif user.mfa_method == "webauthn":
-                options = generate_authentication_options(rp_id="localhost", user_verification=False)
-                return {"message": "WebAuthn challenge required", "mfaRequired": True, "mfaMethod": "webauthn", "challenge": options.dict()}
+                options = generate_authentication_options(
+                    rp_id="localhost",  # Replace with your domain in production
+                )
+                user.webauthn_challenge = options.challenge  # Store challenge for later verification
+                await user.save()
+                return {
+                    "message": "WebAuthn challenge required",
+                    "mfaRequired": True,
+                    "mfaMethod": "webauthn",
+                    "challenge": options.challenge,
+                    "options": options.dict()
+                }
             else:
                 raise HTTPException(status_code=400, detail="Unsupported MFA method")
 
@@ -404,13 +420,12 @@ class UserController:
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
-        token = jwt.encode({"email": email}, os.getenv("EMAIL_SECRET"), algorithm="HS256", expires_in="10m")
+        token = jwt.encode({"email": email, "exp": datetime.utcnow() + timedelta(minutes=10)}, os.getenv("EMAIL_SECRET"), algorithm="HS256")
         magic_link = f"{os.getenv('FRONTEND_URL')}/auth/magic-link?token={token}"
         await send_email(
-            from_="safepassvault@gmail.com",
-            to=email,
-            subject="Your SafePassVault Magic Link",
-            body=f"<p>Click the link below to log in:</p><a href='{magic_link}'>Login to SafePassVault</a>"
+            email,
+            "Your SafePassVault Magic Link",
+            f"<p>Click the link below to log in:</p><a href='{magic_link}'>Login to SafePassVault</a>"
         )
         return {"message": "Magic link sent to your email."}
 
@@ -476,14 +491,14 @@ class UserController:
             base64.b64decode(encrypted_recovery_phrase),
             padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
         )
-        is_verified = public_key.verify(
-            base64.b64decode(user.fingerprint),
-            decrypted_phrase,
-            padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=padding.PSS.MAX_LENGTH),
-            hashes.SHA256()
-        )
-
-        if not is_verified:
+        try:
+            public_key.verify(
+                base64.b64decode(user.fingerprint),
+                decrypted_phrase,
+                padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=padding.PSS.MAX_LENGTH),
+                hashes.SHA256()
+            )
+        except Exception:
             raise HTTPException(status_code=400, detail="Recovery phrase verification failed")
 
         return {"message": "Recovery verified successfully.", "passphrase": decrypted_phrase.decode()}
@@ -528,60 +543,64 @@ class UserController:
             raise HTTPException(status_code=404, detail="User not found")
 
         options = generate_registration_options(
-            rp_id="localhost",
-            rp_name="http://localhost:4200",
-            user_name=user.email,
-            attestation_type="none",
-            timeout=30000,
+            rp=PublicKeyCredentialRpEntity(id="localhost", name="SafePassVault"),
+            user=PublicKeyCredentialUserEntity(
+                id=user_id.encode(),  # User ID as bytes
+                name=user.email,
+                display_name=user.name,
+            ),
+            challenge=base64url_to_bytes(secrets.token_urlsafe(32)),  # Random challenge
         )
-        user.web_authn_challenge = options.challenge
+        user.webauthn_challenge = options.challenge  # Store as bytes
         await user.save()
 
-        return {"challenge": options.challenge, "options": options.dict()}
+        return {"challenge": options.challenge.decode('utf-8'), "options": options.dict()}
 
     @staticmethod
     async def complete_web_auth_registration(user_id: str, data: Dict[str, Any]) -> Dict[str, str]:
         """Complete WebAuthn registration."""
-        credential = data["credential"]
+        credential = RegistrationCredential.parse_obj(data["credential"])
         user = await User.find_one(User.id == user_id)
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
         verification = verify_registration_response(
             credential=credential,
-            expected_challenge=user.web_authn_challenge,
-            expected_origin="http://localhost:4200",
-            expected_rp_id="localhost",
-            require_user_verification=False,
+            expected_challenge=user.webauthn_challenge,
+            expected_origin="https://localhost",  # Adjust for production
+            expected_rp_id="localhost",  # Adjust for production
         )
-        if not verification.verified:
-            raise HTTPException(status_code=400, detail="Could not verify WebAuthn registration")
 
-        user.passkeys_for_web_auth = [verification.registration_info]
+        # Store WebAuthn credentials
+        user.webauthn_client_id = verification.credential_id.decode('utf-8')  # Store as string
+        user.webauthn_public_key = verification.credential_public_key.decode('utf-8')  # Store as string
+        user.sign_count = verification.sign_count  # Initial sign count
         await user.save()
+
         return {"status": "Registration complete"}
 
     @staticmethod
     async def complete_web_authn_authentication(data: Dict[str, Any]) -> Dict[str, Any]:
         """Complete WebAuthn authentication."""
-        credential, challenge, email = data["credential"], data["challenge"], data["email"]
+        credential = AuthenticationCredential.parse_obj(data["credential"])
+        challenge = base64url_to_bytes(data["challenge"])
+        email = data["email"]
         user = await User.find_one(User.email == email)
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
-        passkey = user.passkeys_for_web_auth[0]
         result = verify_authentication_response(
             credential=credential,
-            expected_challenge=challenge["challenge"],
-            expected_origin="http://localhost:4200",
-            expected_rp_id="localhost",
-            credential_id=passkey.credential_id,
-            credential_public_key=passkey.credential_public_key,
-            credential_counter=passkey.credential_counter,
-            require_user_verification=False,
+            expected_challenge=challenge,
+            expected_origin="https://localhost",  # Adjust for production
+            expected_rp_id="localhost",  # Adjust for production
+            credential_public_key=base64url_to_bytes(user.webauthn_public_key),
+            credential_current_sign_count=user.sign_count if user.sign_count is not None else 0,
         )
-        if not result.verified:
-            raise HTTPException(status_code=400, detail="WebAuthn authentication failed")
+
+        # Update sign count to prevent replay attacks
+        user.sign_count = result.new_sign_count
+        await user.save()
 
         token = jwt.encode({"id": str(user.id)}, os.getenv("SECRET_KEY"), algorithm="HS256")
         return {"message": "MFA authentication successful", "token": token}

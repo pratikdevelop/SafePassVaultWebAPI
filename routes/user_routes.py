@@ -6,6 +6,7 @@ router = APIRouter(prefix="/users", tags=["Users"])
 @router.post("/register", response_model=dict, status_code=201)
 async def create_user(data: dict):
     """Register a new user."""
+    print('rrr')
     return await UserController.create_user(data)
 
 @router.post("/confirm-email", response_model=dict)
