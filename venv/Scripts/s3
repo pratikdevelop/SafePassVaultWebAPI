@@ -1,0 +1,213 @@
+#!E:\SafePassVaultWebAPI\venv\Scripts\python.exe
+"""
+
+Commands operate on the default bucket unless the --bucket option is used.
+
+Create a bucket
+  create-bucket [bucket_name]
+  The default bucket_name is the default bucket.
+   
+Delete a file from S3
+  delete delete_file
+
+Delete a bucket
+  delete-bucket [bucket_name]
+  The default bucket_name is the default bucket.
+
+Get a file from S3
+  get remote_src [local_dst]
+
+List all files or list a single file and its metadata.
+  list [list_file]
+
+List all buckets or list a single bucket.  
+  list-buckets [bucket_name]
+  If bucket_name is given but does not exist, this is printed::
+   
+      '%s NOT FOUND' % bucket_name
+
+Put a file to S3
+  put local_src [remote_dst]
+
+arguments:
+  bucket_name
+    The name of the bucket to use.  
+  delete_file
+    The remote file to delete.
+  list_file
+    If present, the file to list (with its metadata),
+    otherwise list all files.
+  local_dst
+    The name of the local file to create (or overwrite).
+    The default is the basename of the remote_src.
+  local_src
+    The name of the local file to put.
+  remote_dst
+    The name of the s3 file to create (or overwrite).
+    The default is the basename of the local_src.
+  remote_src
+    The name of the file in S3 to get.
+"""
+
+import argparse
+import os
+import s3
+import textwrap
+import yaml
+
+DESCRIPTION = __doc__
+DEFAULT_CONFIG = 's3.yaml'
+
+def get_args():
+    # create the top-level parser
+    parser = argparse.ArgumentParser(
+            prog='s3',
+            formatter_class=argparse.RawTextHelpFormatter,
+            description=DESCRIPTION)
+    parser.add_argument(
+            '-c', '--config',
+            default=DEFAULT_CONFIG,
+            type=argparse.FileType('r'),            
+            help=textwrap.dedent("""\
+                    CONFIG is the configuration file to use.
+                    Default is %s""" % DEFAULT_CONFIG))
+    parser.add_argument(
+            '-v', '--verbose',
+            action='store_true',
+            help='Show results of commands.')
+    parser.add_argument(
+            '-b', '--bucket',
+            help='Use BUCKET instead of the default bucket.')
+            
+    subparsers = parser.add_subparsers()
+
+    # create the parser for the "get" command
+    parser_get = subparsers.add_parser('get', )
+    parser_get.add_argument('remote_src', )
+    parser_get.add_argument('local_dst',  nargs='?', ) 
+
+    # create the parser for the "put" command
+    parser_put = subparsers.add_parser('put', ) 
+    parser_put.add_argument('local_src', )
+    parser_put.add_argument('remote_dst', nargs='?', )
+
+    # create the parser for the "delete" command
+    parser_del = subparsers.add_parser('delete', ) 
+    parser_del.add_argument('delete_file', )
+
+    # create the parser for the "list" command
+    parser_lst = subparsers.add_parser('list', ) 
+    parser_lst.add_argument('list_file', nargs='?', )
+
+    # create the parser for the "create-bucket" command
+    parser_cbu = subparsers.add_parser('create-bucket', ) 
+    parser_cbu.add_argument('create_bucket_name', nargs='?', )
+
+    # create the parser for the "delete-bucket" command
+    parser_dbu = subparsers.add_parser('delete-bucket', ) 
+    parser_dbu.add_argument('delete_bucket_name', nargs='?', )
+
+    # create the parser for the "list-buckets" command
+    parser_lbu = subparsers.add_parser('list-buckets', ) 
+    parser_lbu.add_argument('list_bucket_name', nargs='?', )
+
+    return parser.parse_args()
+
+class S3:
+
+    def __init__(self, args):
+        self.args = args
+        self.config = yaml.load(args.config)
+        self.connection = s3.S3Connection(**self.config['s3'])    
+        self.storage = s3.Storage(self.connection)
+        self.bucket = (self.args.bucket 
+                if self.args.bucket
+                else self.connection.default_bucket)
+
+    def command_create_bucket(self, bucket_name):
+        bucket = bucket_name if bucket_name else self.bucket
+        self.storage.bucket_create(bucket)
+        if self.args.verbose:
+            print 'created S3 bucket %s' % (bucket)
+                
+    def command_delete(self, name):
+        remote_name = s3.S3Name(key=name, bucket=self.bucket)
+        self.storage.delete(remote_name)
+        if self.args.verbose:
+            print 'deleted %s from S3' % (remote_name)
+                
+    def command_delete_bucket(self, bucket_name):
+        bucket = bucket_name if bucket_name else self.bucket
+        self.storage.bucket_delete(bucket)
+        if self.args.verbose:
+            print 'deleted bucket %s from S3' % (bucket)
+                
+    def command_get(self, src, dst):
+        destination = self.get_destination(src, dst)
+        remote_src = s3.S3Name(key=src, bucket=self.bucket)
+        self.storage.read(remote_src, destination)
+        if self.args.verbose:
+            print 'created %s from S3 %s' % (destination, remote_src)
+                           
+    def command_list(self, name):
+        if name:
+            exists, metadata = self.storage.exists(name)
+            print '%s exists: %s, metadata: %s' % (name, exists, metadata)
+        else:
+            for key in self.storage.bucket_list_keys(
+                    self.bucket):
+                print '%s %s %12s %s %s %s' % (
+                        key.e_tag,
+                        key.storage_class,
+                        key.size,
+                        key.last_modified,
+                        key.owner.display_name,
+                        key.key,
+                        )
+
+    def command_list_buckets(self, bucket_name):
+        if bucket_name:
+            for bucket in self.storage.bucket_list():
+                if bucket.name == bucket_name:
+                    self.list_bucket(bucket)
+                    break
+            else:
+                print '%s NOT FOUND' % bucket_name
+        else:
+            for bucket in self.storage.bucket_list():
+                self.list_bucket(bucket)
+                
+    def command_put(self, src, dst):
+        destination = self.get_destination( src,  dst)
+        remote_dst = s3.S3Name(key=destination, bucket=self.bucket)
+        self.storage.write(src, remote_dst)
+        if self.args.verbose:
+            print 'created S3 %s from %s' % (remote_dst, src)
+
+    def get_destination(self, src, dst):
+        destination = dst if dst else os.path.basename(src)
+        return destination
+
+    def list_bucket(self, bucket):
+        print '%s %s' % (bucket.creation_date, bucket.name)
+        
+    def run(self):
+        if 'local_dst' in self.args:
+            self.command_get(self.args.remote_src, self.args.local_dst)
+        elif 'local_src' in self.args:
+            self.command_put(self.args.local_src, self.args.remote_dst)
+        elif 'delete_file' in self.args:
+            self.command_delete(self.args.delete_file)
+        elif 'list_file' in self.args:
+            self.command_list(self.args.list_file)
+        elif 'create_bucket_name' in self.args:
+            self.command_create_bucket(self.args.create_bucket_name)
+        elif 'delete_bucket_name' in self.args:
+            self.command_delete_bucket(self.args.delete_bucket_name)
+        elif 'list_bucket_name' in self.args:
+            self.command_list_buckets(self.args.list_bucket_name)
+
+if __name__ == '__main__':
+    args = get_args()
+    S3(args).run()    
+
