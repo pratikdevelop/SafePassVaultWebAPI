@@ -27,7 +27,7 @@ const organizationRoutes = require('./routes/organizationRoutes')
 const folderRoutes = require('./routes/folderRoutes'); // Adjust the path as necessary
 const addressRoutes = require('./routes/addressRoutes'); // Import routes
 
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 8000;
 app.get("/", (req, res) => {
   res.send("Hello World");
 
