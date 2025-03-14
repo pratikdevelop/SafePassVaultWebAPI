@@ -1,15 +1,15 @@
-const File = require('../model/file-storage');
+const File = require('../models/file-storage');
 const fs = require('fs');
 const path = require('path');
-const Folder = require('../model/folder');
-const Invitation = require('../model/Invitation'); // Adjust the path as needed
+const Folder = require('../models/folder');
+const Invitation = require('../models/Invitation'); // Adjust the path as needed
 const AWS = require('aws-sdk');
 const s3 = new AWS.S3({
   accessKeyId: process.env.AWS_ACCESS_KEY_ID,
   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
   region: process.env.AWS_REGION,
 });
-const AuditLog = require('../model/Auditlogs'); // Import the Audit Log model
+const AuditLog = require('../models/Auditlogs'); // Import the Audit Log model
 
 module.exports = {
   uploadFile: async (req, res) => {

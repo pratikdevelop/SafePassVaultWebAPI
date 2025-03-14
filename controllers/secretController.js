@@ -1,5 +1,5 @@
-const Secret = require('../model/secrets');
-const AuditLog = require('../model/Auditlogs'); // Import the Audit Log model
+const Secret = require('../models/secrets');
+const AuditLog = require('../models/Auditlogs'); // Import the Audit Log model
 
 // Create a new secret (e.g., API key, credential)
 exports.createSecret = async (req, res) => {

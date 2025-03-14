@@ -1,7 +1,7 @@
 // const { paypalClient } = require("../config/paypalClient");
-const Subscription = require('../model/subscription')
+const Subscription = require('../models/subscription')
 // const paypal = require('@paypal/checkout-server-sdk')
-const Plan = require('../model/plan'); // Adjust the path as necessary
+const Plan = require('../models/plan'); // Adjust the path as necessary
 
 exports.getPlans = async (req, res) => {
   try {

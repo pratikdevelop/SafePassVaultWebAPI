@@ -1,5 +1,5 @@
-const User = require("../model/user");
-const Organization = require("../model/Organization");
+const User = require("../models/user");
+const Organization = require("../models/Organization");
 const crypto = require("crypto");
 const { v4: uuidv4 } = require("uuid");
 const bcrypt = require("bcryptjs");
@@ -203,7 +203,8 @@ exports.confirmEmail = async (req, res) => {
     const token = user.generateAuthToken();
     res.status(200).json({ message: "Email confirmed successfully", token });
   } catch (error) {
-    res.status(400).json({ message: "Error confirming email" });
+    res.status(500).json({ message: "Email confirmation failed", error: error.message });
+    // res.status(400).json({ message: "Error confirming email" });
   }
 };
 

@@ -1,10 +1,10 @@
-const Note = require("../model/note"); // Assuming the schema file is named note.js
-const User = require("../model/user");
+const Note = require("../models/note"); // Assuming the schema file is named note.js
+const User = require("../models/user");
 const { parse } = require("json2csv");
-const SharedItem = require("../model/shareItem"); // Assuming this is your SharedItem model
-const Tag = require("../model/tag");
-const Comment = require("../model/comment");
-const AuditLog = require('../model/Auditlogs'); // Import the Audit Log model
+const SharedItem = require("../models/shareItem"); // Assuming this is your SharedItem model
+const Tag = require("../models/tag");
+const Comment = require("../models/comment");
+const AuditLog = require('../models/Auditlogs'); // Import the Audit Log model
 
 // Create a new note
 exports.createNote = async (req, res) => {

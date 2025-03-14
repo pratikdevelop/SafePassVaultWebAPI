@@ -1,11 +1,11 @@
-const Password = require("../model/password");
-const User = require("../model/user");
+const Password = require("../models/password");
+const User = require("../models/user");
 const jwt = require("jsonwebtoken");
 const CryptoJS = require("crypto-js");
-const SharedItem = require("../model/shareItem");
+const SharedItem = require("../models/shareItem");
 const { parse } = require("json2csv");
-const Tag = require("../model/tag");
-const Comment = require("../model/comment");
+const Tag = require("../models/tag");
+const Comment = require("../models/comment");
 const logger = require("../config/logger");
 const { sendEmail } = require("../utlis/email");
 const fs = require('fs-extra');
@@ -13,7 +13,7 @@ const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const archiver = require('archiver');
 const csvDirectory = path.join(__dirname, 'temp-csv');
-const AuditLog = require('../model/Auditlogs');
+const AuditLog = require('../models/Auditlogs');
 
 // Ensure the directory exists
 fs.ensureDirSync(csvDirectory);

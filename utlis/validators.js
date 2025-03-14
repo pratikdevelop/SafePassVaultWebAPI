@@ -1,4 +1,4 @@
-const User = require('../model/user'); // Import User model for checking existing emails
+const User = require('../models/user'); // Import User model for checking existing emails
 
 /**
  * Validates the input fields during user registration.

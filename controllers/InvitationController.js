@@ -1,6 +1,6 @@
-const User = require("../model/user");
-const Organization = require("../model/Organization");
-const Invitation = require("../model/Invitation");
+const User = require("../models/user");
+const Organization = require("../models/Organization");
+const Invitation = require("../models/Invitation");
 
 exports.sendInvitation = async (req, res) => {
     const organizationId = req.params.organizationId;

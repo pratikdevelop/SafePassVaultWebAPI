@@ -1,5 +1,5 @@
-const Tag = require("../model/tag");
-const AuditLog = require('../model/Auditlogs'); // Import the Audit Log model
+const Tag = require("../models/tag");
+const AuditLog = require('../models/Auditlogs'); // Import the Audit Log model
 
 // Create a new tag
 exports.createTag = async (req, res) => {

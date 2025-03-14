@@ -1,4 +1,4 @@
-const SecurityQuestion = require('../model/securityQuestion');
+const SecurityQuestion = require('../models/securityQuestion');
 
 // Add or update security questions for a user
 exports.addOrUpdateSecurityQuestions = async (req, res) => {

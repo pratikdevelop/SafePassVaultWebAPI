@@ -1,4 +1,4 @@
-const SSOSettings = require('../model/SSOSettings')
+const SSOSettings = require('../models/SSOSettings')
 
 exports.getAllSSoSettings = async (req, res) => {
     try {

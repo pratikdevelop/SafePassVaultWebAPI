@@ -1,4 +1,4 @@
-const Organization = require("../model/Organization");
+const Organization = require("../models/Organization");
 
 
 exports.deleteOrganization = async (req, res) => {

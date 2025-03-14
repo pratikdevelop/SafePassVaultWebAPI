@@ -1,5 +1,5 @@
-const Folder = require("../model/folder");
-const AuditLog = require('../model/Auditlogs'); // Import the Audit Log model
+const Folder = require("../models/folder");
+const AuditLog = require('../models/Auditlogs'); // Import the Audit Log model
 
 // Create a new folder
 exports.createFolder = async (req, res) => {

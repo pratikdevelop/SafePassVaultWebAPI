@@ -1,4 +1,4 @@
-const AuditLog = require('../model/Auditlogs'); // Adjust path accordingly
+const AuditLog = require('../models/Auditlogs'); // Adjust path accordingly
 
 exports.getUserAuditLogs = async (req, res) => {
     try {

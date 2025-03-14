@@ -1,10 +1,10 @@
-const User = require('../model/user')
-const SharedItem = require('../model/shareItem')
-const Password = require('../model/password')
-const File = require('../model/file-storage');
-const Card = require('../model/card');
-const Note = require('../model/note');
-const Identity = require('../model/proofid');
+const User = require('../models/user')
+const SharedItem = require('../models/shareItem')
+const Password = require('../models/password')
+const File = require('../models/file-storage');
+const Card = require('../models/card');
+const Note = require('../models/note');
+const Identity = require('../models/proofid');
 exports.shareItem = async (req, res) => {
   // try {
   //   const { itemType, itemId, users } = req.body; // `users` is an array of user objects

@@ -28,7 +28,7 @@ const addressRoutes = require('./routes/addressRoutes');
 const ticketRoutes = require('./routes/ticketRoutes');
 const helmet = require('helmet');  // Import Helmet
 const rateLimit = require("express-rate-limit");  // Import express-rate-limit
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 8000;
 
 // Use Helmet for security headers
 app.use(helmet());

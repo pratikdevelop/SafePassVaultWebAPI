@@ -1,5 +1,5 @@
-const ProofId = require('../model/proofid'); // Assuming the schema file is named proofId.js
-const AuditLog = require('../model/Auditlogs'); // Import the Audit Log model
+const ProofId = require('../models/proofid'); // Assuming the schema file is named proofId.js
+const AuditLog = require('../models/Auditlogs'); // Import the Audit Log model
 
 // Create a new proof ID
 exports.createProofId = async (req, res) => {

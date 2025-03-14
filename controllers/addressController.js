@@ -1,5 +1,5 @@
-const Address = require('../model/address');
-const AuditLog = require('../model/Auditlogs'); // Import the Audit Log model
+const Address = require('../models/address');
+const AuditLog = require('../models/Auditlogs'); // Import the Audit Log model
 
 // Create a new address
 exports.createAddress = async (req, res) => {
